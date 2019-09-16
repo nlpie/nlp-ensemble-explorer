@@ -1,6 +1,8 @@
 # Tools for ensembling:
 
-Code for extracting UMLS concepts and CUIs from relevant corpora
+Code for parsing and evaluating system performance of extracted UMLS concepts and CUIs from relevant corpora
+
+*TODO: add otherannotation tasks (e.g., abbreviation disambiguation)*
 
 ## Parsing manually annotated corpora:
 
@@ -73,6 +75,5 @@ pymsql
 shelve (for persistant storage of i-o labeled vectors)
 pythonds (for use of binary parse tree data structures and methods)
 
-*TODO: add otherannotation tasks (e.g., abbreviation disambiguation)*
 
 
