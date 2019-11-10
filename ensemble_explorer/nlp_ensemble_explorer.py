@@ -26,7 +26,7 @@ import shelve
 import pandas as pd
 import numpy as np
 import math
-import pymysql
+#import pymysql
 import time 
 import functools as ft
 import glob   
@@ -43,12 +43,14 @@ from pythonds.basic.stack import Stack
 from pythonds.trees.binaryTree import BinaryTree
 from collections import defaultdict
 from typing import List, Set, Tuple 
+from config import engine, data_dir, dir_out, systems, system_annotations, reference_annotations
     
-engine = create_engine('mysql+pymysql://gms:nej123@localhost/test', pool_pre_ping=True, pool_size=20, max_overflow=30)
+#engine = create_engine('mysql+pymysql://gms:nej123@localhost/test', pool_pre_ping=True, pool_size=20, max_overflow=30)
 
 
 # In[78]:
 
+print(engine, dir_out)
 
 # config class for analysis
 class AnalysisConfig(object):
@@ -60,25 +62,20 @@ class AnalysisConfig(object):
     def __init__(self):
         self = self    
        
-        #self.systems = ['biomedicus', 'clamp', 'ctakes', 'metamap', 'quick_umls']
-        self.systems = ['biomedicus', 'clamp', 'metamap']
-        #self.systems = ['biomedicus', 'clamp', 'ctakes', 'metamap']
-        #self.systems = ['metamap']
-        #self.systems = ['biomedicus']
-        #self.systems = ['quick_umls']
-        self.data_dir = '/Users/gms/development/nlp/nlpie/data/amicus-u01/output/'
+        self.systems = systems      
+        self.data_dir = data_dir
     
     def corpus_config(self, corpus):
         
-        if corpus == 'mipacq':
-            usys_data = 'analytical_cui_mipacq_concepts.csv'
-            ref_data = 'test.mipacq_all'
-        elif corpus == 'i2b2':
-            usys_data = 'analytical_cui_i2b2_concepts.csv'
-            ref_data = 'test.i2b2_all'
-        elif corpus == 'casi':
-            usys_data = 'test.amia_2019_analytical'
-            ref_data = 'test.amia_2019_ref'
+        #if corpus == 'mipacq':
+        usys_data = database_name.system_annotations
+        ref_data = database_name.reference_annotations
+        #elif corpus == 'i2b2':
+        #usys_data = 'analytical_cui_i2b2_concepts.csv'
+        #ref_data = 'test.i2b2_all'
+        #elif corpus == 'casi':
+        #usys_data = 'test.amia_2019_analytical'
+        #ref_data = 'test.amia_2019_ref'
             
         return usys_data, ref_data
         
@@ -1763,13 +1760,6 @@ def main():
         test_ensemble(analysis_type, corpus)
     elif (rtype == 4):
         generate_metrics_test(analysis_type, corpus)
-
-
-
-
-    
-
-#options()
 
 if __name__ == '__main__':
 
