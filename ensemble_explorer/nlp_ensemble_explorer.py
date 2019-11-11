@@ -44,11 +44,15 @@ from pythonds.trees.binaryTree import BinaryTree
 from collections import defaultdict
 from typing import List, Set, Tuple 
 from config import engine, data_dir, dir_out, systems, system_annotations, reference_annotations
+from typesystems import Annotations 
     
 #engine = create_engine('mysql+pymysql://gms:nej123@localhost/test', pool_pre_ping=True, pool_size=20, max_overflow=30)
 
 
 # In[78]:
+
+
+print('test', Annotations().get_system_type())
 
 print(engine, dir_out)
 

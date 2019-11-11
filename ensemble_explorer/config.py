@@ -2,7 +2,14 @@ from sqlalchemy.engine import create_engine
 import pymysql
 from pathlib import Path
 
-engine = create_engine('mysql+pymysql://gms:nej123@localhost/test', pool_pre_ping=True, pool_size=20, max_overflow=30)
+database_type = 'mysql+pymysql' # We use mysql+pymql as default
+database_username = 'gms'
+database_password = 'nej123' 
+database_url = 'localhost' # HINT: use localhost if you're running database on your local machine
+database_name = 'test' # Enter database name
+
+engine_request = str(database_type)+'://'+database_username+':'+database_password+"@"+database_url+'/'+database_name
+engine = create_engine(engine_request, pool_pre_ping=True, pool_size=20, max_overflow=30)
 
 data_dir =  '/Users/gms/development/nlp/nlpie/data/amicus-u01/output/'
 
