@@ -1,6 +1,6 @@
 
 
-class Annotations(object):
+class Annotations:
      
     def __init__(self):
             
