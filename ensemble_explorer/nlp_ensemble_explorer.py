@@ -19,7 +19,7 @@
 
 
 # In[77]:
-
+import time
 import click
 import numpy as np
 import shelve
@@ -43,7 +43,7 @@ from pythonds.basic.stack import Stack
 from pythonds.trees.binaryTree import BinaryTree
 from collections import defaultdict
 from typing import List, Set, Tuple 
-from config import engine, data_dir, dir_out, systems, system_annotations, reference_annotations
+from config import analysis_type, engine, data_dir, dir_out, systems, system_annotations, reference_annotations, database_name, database_type, database_username, database_password, database_url
 from typesystems import Annotations 
     
 #engine = create_engine('mysql+pymysql://gms:nej123@localhost/test', pool_pre_ping=True, pool_size=20, max_overflow=30)
@@ -51,10 +51,6 @@ from typesystems import Annotations
 
 # In[78]:
 
-
-print('test', Annotations().get_system_type())
-
-print(engine, dir_out)
 
 # config class for analysis
 class AnalysisConfig(object):
@@ -69,23 +65,17 @@ class AnalysisConfig(object):
         self.systems = systems      
         self.data_dir = data_dir
     
-    def corpus_config(self, corpus):
+    def corpus_config(self):
         
-        #if corpus == 'mipacq':
-        usys_data = database_name.system_annotations
-        ref_data = database_name.reference_annotations
-        #elif corpus == 'i2b2':
-        #usys_data = 'analytical_cui_i2b2_concepts.csv'
-        #ref_data = 'test.i2b2_all'
-        #elif corpus == 'casi':
-        #usys_data = 'test.amia_2019_analytical'
-        #ref_data = 'test.amia_2019_ref'
-            
+        usys_data = system_annotations
+        ref_data = database_name+'.'+reference_annotations
+
         return usys_data, ref_data
         
 
 # In[79]:
 
+analysisConf =  AnalysisConfig()
 
 # annotation class for UIMA systems
 class AnnotationSystems(object):
@@ -112,7 +102,7 @@ class AnnotationSystems(object):
                              #"edu.uth.clamp.nlp.typesystem.ClampRelationUIMA"]    
         
         self.ctakes_dir = "ctakes_out/"
-        self.ctakes_types = ['ctakes_mentions_all']#"org.apache.ctakes.typesystem.type.textspan.Sentence",
+        self.ctakes_types = ['ctakes_mentions']#"org.apache.ctakes.typesystem.type.textspan.Sentence",
                              #"org.apache.ctakes.typesystem.type.textsem.DiseaseDisorderMention",
                              #"org.apache.ctakes.typesystem.type.textsem.MedicationMention",
                              #"org.apache.ctakes.typesystem.type.textsem.ProcedureMention",
@@ -787,29 +777,32 @@ print('time 2:', elapsed)
 
 # In[88]:
 
-
 def get_metric_data(training_notes: List[str], analysis_type: str, corpus: str):
-
-    usys_file, ref_table = AnalysisConfig().corpus_config(corpus)
-    systems = AnalysisConfig().systems
+    engine_request = str(database_type)+'://'+database_username+':'+database_password+"@"+database_url+'/'+database_name
+    engine = create_engine(engine_request, pool_pre_ping=True, pool_size=20, max_overflow=30)
    
-    if corpus != 'casi' and 'test' not in analysis_type:
-        sys_ann = pd.read_csv(analysisConf.data_dir + usys_file, dtype={'note_id': str})
-        sys_ann = sys_ann[~sys_ann['note_id'].isin(training_notes)]
-        sys_ann = sys_ann.drop_duplicates()
-        sql = "SELECT * FROM " + ref_table + " where file not in %(training_notes)s"  
-        ref_ann = pd.read_sql(sql, params={"training_notes":training_notes}, con=engine)
-        
-    elif corpus == 'casi':
-        sys_ann = pd.read_sql("SELECT * FROM " + usys_file + ";", con=engine)
-        ref_ann = pd.read_sql("SELECT * FROM " + ref_table + ";", con=engine)
-        
-    elif 'test' in analysis_type:
-        pass
+    usys_file, ref_table = AnalysisConfig().corpus_config()
+    systems = AnalysisConfig().systems
     
+    sys_ann = pd.read_csv(analysisConf.data_dir + usys_file, dtype={'note_id': str})
+    
+    if 'test' not in analysis_type:
+        if corpus != 'fairview':
+            sql = "SELECT * FROM " + ref_table + " where file not in %(training_notes)s"  
+            sys_ann = sys_ann[~sys_ann['note_id'].isin(training_notes)]
+        else:
+            sql = "SELECT * FROM " + ref_table  
+            sys_ann = sys_ann
+            
+        
+    else:
+        sql = "SELECT * FROM " + ref_table + " where file in %(training_notes)s"  
+        sys_ann = sys_ann[sys_ann['note_id'].isin(training_notes)]
+    
+    ref_ann = pd.read_sql(sql, params={"training_notes":training_notes}, con=engine)
+    sys_ann = sys_ann.drop_duplicates()
     
     return ref_ann, sys_ann
-
 
 # In[89]:
 
@@ -854,7 +847,7 @@ def generate_metrics(analysis_type: str, corpus: str, single_sys = None):
                 system = system_annotations[system_annotations['type'] == str(t)]
             
                 if sys == 'quick_umls':
-                    system = system[system.similarity.astype(float) >= 0.75]
+                    system = system[system.score.astype(float) >= 0.75]
             
                 system = system.drop_duplicates()
                 system.name = sys
@@ -1029,7 +1022,7 @@ def get_sys_data(system: str, analysis_type: str, corpus: str) -> int:
         out = data[data['system']== system].copy()
 
         if system == 'quick_umls':
-            out = out[(out.similarity.astype(float) >= 0.75) & (out["type"] == 'concept_jaccard_score_False')]
+            out = out[(out.score.astype(float) >= 0.75) & (out["type"] == 'concept_jaccard_score_False')]
 
         if 'entity' in analysis_type:
             cols_to_keep = ['begin', 'end', 'note_id']
@@ -1153,7 +1146,7 @@ def merge_eval(ref_only: int, system_only: int, ref_system_match: int, system_n:
     # get evaluation metrics
     d = {}
     
-    F, recall, precision, TP, FP, FN, TP_FN_R, TM  = Metrics(system_only, ref_only, ref_system_match, system_n).get_confusion_metrics('casi')
+    F, recall, precision, TP, FP, FN, TP_FN_R, TM  = Metrics(system_only, ref_only, ref_system_match, system_n).get_confusion_metrics()
 
     if corpus == 'casi':
         d = {'F': F, 
@@ -1300,20 +1293,28 @@ def process_sentence(pt, sentence, analysis_type, corpus):
                         r.results = r.results.union(match_set)
 
                         if isinstance(leftC, str) and isinstance(rightC, str):
-                            df = left_sys.append(right_sys)
-                            df = df[cols_to_keep].drop_duplicates()
+                            frames = [left_sys, right_sys]
+                            df = pd.concat(frames,  ignore_index=True)
+                            #df = left_sys.append(right_sys)
+                            df = df[cols_to_keep].drop_duplicates(cols_to_keep)
 
                         elif isinstance(leftC, str) and isinstance(rightC, tuple):
-                            df = left_sys.append(r_sys)
-                            df = df[cols_to_keep].drop_duplicates()
+                            frames = [left_sys, r_sys]
+                            df = pd.concat(frames,  ignore_index=True)
+                            #df = left_sys.append(r_sys)
+                            df = df[cols_to_keep].drop_duplicates(cols_to_keep)
 
                         elif isinstance(leftC, tuple) and isinstance(rightC, str):
-                            df = right_sys.append(l_sys)
-                            df = df[cols_to_keep].drop_duplicates()
+                            frames = [l_sys, right_sys]
+                            df = pd.concat(frames,  ignore_index=True)
+                            #df = right_sys.append(l_sys)
+                            df = df[cols_to_keep].drop_duplicates(cols_to_keep)
 
                         elif isinstance(leftC, tuple) and isinstance(rightC, tuple):
-                            df = l_sys.append(r_sys)
-                            df = df[cols_to_keep].drop_duplicates()
+                            frames = [l_sys, r_sys]
+                            df = pd.concat(frames,  ignore_index=True)
+                            #df = l_sys.append(r_sys)
+                            df = df[cols_to_keep].drop_duplicates(cols_to_keep)
 
                     if fn == op.and_:
                         if len(r.results) == 0:
@@ -1532,7 +1533,7 @@ def run_ensemble(l, analysis_type, corpus):
 
     metrics = pd.DataFrame()
 
-    for i in range(3, len(l)+1): # change lower bound to get number of terms; TODO -> order counts for more than 2-terms
+    for i in range(1, len(l)+1): # change lower bound to get number of terms; TODO -> order counts for more than 2-terms
         test = list(expressions(l, i))
         for t  in test:
             if i > 1:
@@ -1720,7 +1721,11 @@ def test_ensemble(analysis_type, corpus):
 
 
 # In[99]:
-
+def partly_unordered_permutations(lst, k):
+    elems = set(lst)
+    for c in combinations(lst, k):
+        for d in permutations(elems - set(c)):
+            yield c + d
 
 def main():
 
@@ -1728,6 +1733,8 @@ def main():
     #options()
 
     rtype = int(input("Run: 1->Single systems; 2->Ensemble; 3->Tests; 4-> MM Test"))
+
+    start = time.perf_counter()
    
     '''
         corpora: i2b2, mipacq, fv017
@@ -1769,14 +1776,11 @@ if __name__ == '__main__':
 
     @click.group()
     def analyze():
-        """ Convert between common annotation types """
         pass
 
     @analyze.command()
     @click.option('-c', '--corpus', 'corpus', default='i2b2', help='Select corpus for analysis: (i2b2), (mipacq), (casi)', type=click.STRING)
-    @click.option('-t', '--task', 'task', default='entity', help='Select analysis task: entity, cui, both', type=click.STRING)
-    #@click.option('-o', '--output', 'outfile', default=sys.stdout, type=click.File('w', lazy=True))
-    #@click.option('--default', 'style', flag_value='default', default=True, help="generate annotations with the BadgerFish convention, which loses position information but is otherwise lossless (default)")
+    #@click.option('-t', '--task', 'task', default='entity', help='Select analysis task: entity, cui, both', type=click.STRING)
     def single_system(corpus, task):
         """ Analyze single system """
         if corpus is None:
@@ -1784,20 +1788,22 @@ if __name__ == '__main__':
         print('Running ', corpus, task) 
     
     @analyze.command()
-    @click.option('-c', '--corpus', 'corpus', default='i2b2', help='Select corpus for analysis: (i2b2), (mipacq), (casi)', type=click.STRING)
-    @click.option('-t', '--task', 'task', default='entity', help='Select analysis task: entity, cui, both', type=click.STRING)
-    #@click.option('-o', '--output', 'outfile', default=sys.stdout, type=click.File('w', lazy=True))
-    #@click.option('--default', 'style', flag_value='default', default=True, help="generate annotations with the BadgerFish convention, which loses position information but is otherwise lossless (default)")
-    def ensemble(corpus, task):
+    @click.option('-c', '--corpus', 'corpus', default='fairview', help='Select corpus for analysis: (i2b2), (mipacq), (casi)', type=click.STRING)
+    #@click.option('-t', '--task', 'analysis_type', default='entity', help='Select analysis task: entity, cui, both', type=click.STRING)
+    def ensemble(corpus):
         """ Analyze ensemble """
+        analysisConf =  AnalysisConfig()
         if corpus is None:
             exit(1)
-        print('Running ', corpus, task) 
+        systems = ['ctakes','biomedicus','clamp','metamap','quick_umls']
+        print('Running ', corpus, analysis_type) 
+        start = time.perf_counter()
+        run_ensemble(systems, analysis_type, corpus)
+        elapsed = (time.perf_counter() - start)
+        print('elapsed:', elapsed)
 
     @analyze.command()
     @click.option('-s', '--systems', 'systems', default='biomedicus', help='Select corpus for analysis: (i2b2), (mipacq), (casi)', type=click.STRING)
-    #@click.option('-o', '--output', 'outfile', default=sys.stdout, type=click.File('w', lazy=True))
-    #@click.option('--default', 'style', flag_value='default', default=True, help="generate annotations with the BadgerFish convention, which loses position information but is otherwise lossless (default)")
     def tests(systems):
         """ Analyze ensemble """
         if systems is None:
