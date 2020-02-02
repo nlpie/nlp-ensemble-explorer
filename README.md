@@ -34,16 +34,14 @@ TODO:
 General format of system data:
 
    - id; pk
-   - cui: assigned cui (preferred) 
+   - cui: assigned cui (preferred; when available)
    - span: begin and end
    - note_id: corpus assigned case_id/mrn
+   - corpus: identifes corpus by name
    - system: NLP system
-   - similarity: similarity score based on given algorithm (used for quick_umls)
-   - corpus: not used
-   - type: for quick_umls this is the similarity metric; for UIMA systems, this is the assigned type
-   - polarity: -1 or 1 for negation; null if not used
-   - score: MetaMap scoring threshold 
-   - qscore: ????
+   - type: for quick_umls this is the similarity metric; for UIMA systems, this is the assigned annotation type
+   - score: MetaMap scoring threshold; similarity score for QuickUmls; probability for CLAMP; n/a for cTAKES 
+   - semantic_type: culled from Figure 1 in paper, based on system
 
 2. Refence/gold standard data are parsed into aa MySQL database
 
@@ -55,6 +53,7 @@ General format of reference/gold standard data:
    - span: start and end 
    - value: cui (when available)
    - classType (mipacq only): string if no modifier; boolean if negation; degree if (?)
+   - semantic_type: culled from Figure 1 in paper, based on corpus
 
 ### To use data in nlp_ensemble_explorer.ipynb:
 
