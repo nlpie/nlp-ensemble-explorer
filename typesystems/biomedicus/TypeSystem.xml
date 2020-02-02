@@ -1,0 +1,1437 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<typeSystemDescription xmlns="http://uima.apache.org/resourceSpecifier">
+    <types>
+        <typeDescription>
+            <name>ArtifactID</name>
+            <description>A unique artifact identifier.</description>
+            <supertypeName>uima.cas.TOP</supertypeName>
+            <features>
+                <featureDescription>
+                    <name>artifactID</name>
+                    <description>A unique identification string for the artifact. This should be the file name for files,
+            or the unique identifier used in a database if the document source is a database
+            collection reader.</description>
+                    <rangeTypeName>uima.cas.String</rangeTypeName>
+                </featureDescription>
+            </features>
+        </typeDescription>
+        <typeDescription>
+            <name>ArtifactMetadata</name>
+            <description>A piece of metadata about the artifact in the form of a key value pair.</description>
+            <supertypeName>uima.cas.TOP</supertypeName>
+            <features>
+                <featureDescription>
+                    <name>key</name>
+                    <description/>
+                    <rangeTypeName>uima.cas.String</rangeTypeName>
+                </featureDescription>
+                <featureDescription>
+                    <name>value</name>
+                    <description/>
+                    <rangeTypeName>uima.cas.String</rangeTypeName>
+                </featureDescription>
+            </features>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.Acronym</name>
+            <description>Automatically generated type from edu.umn.biomedicus.acronyms.Acronym</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+            <features>
+                <featureDescription>
+                    <name>text</name>
+                    <description>Automatically generated feature</description>
+                    <rangeTypeName>uima.cas.String</rangeTypeName>
+                </featureDescription>
+                <featureDescription>
+                    <name>hasSpaceAfter</name>
+                    <description>Automatically generated feature</description>
+                    <rangeTypeName>uima.cas.Boolean</rangeTypeName>
+                </featureDescription>
+                <featureDescription>
+                    <name>score</name>
+                    <description>Automatically generated feature</description>
+                    <rangeTypeName>uima.cas.Double</rangeTypeName>
+                </featureDescription>
+            </features>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.AlcoholAmount</name>
+            <description>Automatically generated type from edu.umn.biomedicus.sh.AlcoholAmount</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.AlcoholCandidate</name>
+            <description>Automatically generated type from edu.umn.biomedicus.sh.AlcoholCandidate</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.AlcoholCue</name>
+            <description>Automatically generated type from edu.umn.biomedicus.sh.AlcoholCue</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.AlcoholFrequency</name>
+            <description>Automatically generated type from edu.umn.biomedicus.sh.AlcoholFrequency</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.AlcoholMethod</name>
+            <description>Automatically generated type from edu.umn.biomedicus.sh.AlcoholMethod</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.AlcoholRelevant</name>
+            <description>Automatically generated type from edu.umn.biomedicus.sh.AlcoholRelevant</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.AlcoholStatus</name>
+            <description>Automatically generated type from edu.umn.biomedicus.sh.AlcoholStatus</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.AlcoholTemporal</name>
+            <description>Automatically generated type from edu.umn.biomedicus.sh.AlcoholTemporal</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.AlcoholType</name>
+            <description>Automatically generated type from edu.umn.biomedicus.sh.AlcoholType</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.AlcoholUnit</name>
+            <description>Automatically generated type from edu.umn.biomedicus.sh.AlcoholUnit</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.Bold</name>
+            <description>Automatically generated type from edu.umn.biomedicus.formatting.Bold</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.CandidateUnitOfMeasure</name>
+            <description>Automatically generated type from edu.umn.biomedicus.measures.CandidateUnitOfMeasure</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.Cell</name>
+            <description>Automatically generated type from edu.umn.biomedicus.structure.Cell</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.ConstituencyParse</name>
+            <description>Automatically generated type from edu.umn.biomedicus.parsing.ConstituencyParse</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+            <features>
+                <featureDescription>
+                    <name>parseTree</name>
+                    <description>Automatically generated feature</description>
+                    <rangeTypeName>uima.cas.String</rangeTypeName>
+                </featureDescription>
+            </features>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.DayOfWeek</name>
+            <description>Automatically generated type from edu.umn.biomedicus.time.DayOfWeek</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.Dependency</name>
+            <description>Automatically generated type from edu.umn.biomedicus.parsing.Dependency</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+            <features>
+                <featureDescription>
+                    <name>dep</name>
+                    <description>Automatically generated feature</description>
+                    <rangeTypeName>biomedicus.v2.ParseToken</rangeTypeName>
+                </featureDescription>
+                <featureDescription>
+                    <name>relation</name>
+                    <description>Automatically generated feature</description>
+                    <rangeTypeName>edu.umn.biomedicus.parsing.UDRelation</rangeTypeName>
+                </featureDescription>
+                <featureDescription>
+                    <name>head</name>
+                    <description>Automatically generated feature</description>
+                    <rangeTypeName>biomedicus.v2.Dependency</rangeTypeName>
+                </featureDescription>
+            </features>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.DependencyParse</name>
+            <description>Automatically generated type from edu.umn.biomedicus.parsing.DependencyParse</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+            <features>
+                <featureDescription>
+                    <name>root</name>
+                    <description>Automatically generated feature</description>
+                    <rangeTypeName>uima.tcas.Annotation</rangeTypeName>
+                </featureDescription>
+            </features>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.DictionaryTerm</name>
+            <description>Automatically generated type from edu.umn.biomedicus.concepts.DictionaryTerm</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.DrugAmount</name>
+            <description>Automatically generated type from edu.umn.biomedicus.sh.DrugAmount</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.DrugCandidate</name>
+            <description>Automatically generated type from edu.umn.biomedicus.sh.DrugCandidate</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.DrugCue</name>
+            <description>Automatically generated type from edu.umn.biomedicus.sh.DrugCue</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.DrugFrequency</name>
+            <description>Automatically generated type from edu.umn.biomedicus.sh.DrugFrequency</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.DrugMethod</name>
+            <description>Automatically generated type from edu.umn.biomedicus.sh.DrugMethod</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.DrugRelevant</name>
+            <description>Automatically generated type from edu.umn.biomedicus.sh.DrugRelevant</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.DrugStatus</name>
+            <description>Automatically generated type from edu.umn.biomedicus.sh.DrugStatus</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.DrugTemporal</name>
+            <description>Automatically generated type from edu.umn.biomedicus.sh.DrugTemporal</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.DrugType</name>
+            <description>Automatically generated type from edu.umn.biomedicus.sh.DrugType</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.DrugUnit</name>
+            <description>Automatically generated type from edu.umn.biomedicus.sh.DrugUnit</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.FuzzyValue</name>
+            <description>Automatically generated type from edu.umn.biomedicus.measures.FuzzyValue</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.GenericMethodPhrase</name>
+            <description>Automatically generated type from edu.umn.biomedicus.sh.GenericMethodPhrase</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.Historical</name>
+            <description>Automatically generated type from edu.umn.biomedicus.modification.Historical</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+            <features>
+                <featureDescription>
+                    <name>cueTerms</name>
+                    <description>Automatically generated feature</description>
+                    <rangeTypeName>uima.cas.FSArray</rangeTypeName>
+                    <elementType>biomedicus.v2.ModificationCue</elementType>
+                </featureDescription>
+            </features>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.IndefiniteQuantifierCue</name>
+            <description>Automatically generated type from edu.umn.biomedicus.measures.IndefiniteQuantifierCue</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+            <features>
+                <featureDescription>
+                    <name>indefiniteQuantifierType</name>
+                    <description>Automatically generated feature</description>
+                    <rangeTypeName>uima.cas.String</rangeTypeName>
+                </featureDescription>
+            </features>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.Italic</name>
+            <description>Automatically generated type from edu.umn.biomedicus.formatting.Italic</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.ModificationCue</name>
+            <description>Automatically generated type from edu.umn.biomedicus.modification.ModificationCue</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.Month</name>
+            <description>Automatically generated type from edu.umn.biomedicus.time.Month</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.Negated</name>
+            <description>Automatically generated type from edu.umn.biomedicus.modification.Negated</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+            <features>
+                <featureDescription>
+                    <name>cueTerms</name>
+                    <description>Automatically generated feature</description>
+                    <rangeTypeName>uima.cas.FSArray</rangeTypeName>
+                    <elementType>biomedicus.v2.ModificationCue</elementType>
+                </featureDescription>
+            </features>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.NestedCell</name>
+            <description>Automatically generated type from edu.umn.biomedicus.structure.NestedCell</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.NestedRow</name>
+            <description>Automatically generated type from edu.umn.biomedicus.structure.NestedRow</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.NicotineAmount</name>
+            <description>Automatically generated type from edu.umn.biomedicus.sh.NicotineAmount</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.NicotineCandidate</name>
+            <description>Automatically generated type from edu.umn.biomedicus.sh.NicotineCandidate</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.NicotineCue</name>
+            <description>Automatically generated type from edu.umn.biomedicus.sh.NicotineCue</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.NicotineFrequency</name>
+            <description>Automatically generated type from edu.umn.biomedicus.sh.NicotineFrequency</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.NicotineMethod</name>
+            <description>Automatically generated type from edu.umn.biomedicus.sh.NicotineMethod</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.NicotineRelevant</name>
+            <description>Automatically generated type from edu.umn.biomedicus.sh.NicotineRelevant</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.NicotineStatus</name>
+            <description>Automatically generated type from edu.umn.biomedicus.sh.NicotineStatus</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.NicotineTemporal</name>
+            <description>Automatically generated type from edu.umn.biomedicus.sh.NicotineTemporal</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.NicotineType</name>
+            <description>Automatically generated type from edu.umn.biomedicus.sh.NicotineType</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.NicotineUnit</name>
+            <description>Automatically generated type from edu.umn.biomedicus.sh.NicotineUnit</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.NormForm</name>
+            <description>Automatically generated type from edu.umn.biomedicus.normalization.NormForm</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+            <features>
+                <featureDescription>
+                    <name>normalForm</name>
+                    <description>Automatically generated feature</description>
+                    <rangeTypeName>uima.cas.String</rangeTypeName>
+                </featureDescription>
+                <featureDescription>
+                    <name>identifier</name>
+                    <description>Automatically generated feature</description>
+                    <rangeTypeName>uima.cas.Integer</rangeTypeName>
+                </featureDescription>
+            </features>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.Number</name>
+            <description>Automatically generated type from edu.umn.biomedicus.measures.Number</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+            <features>
+                <featureDescription>
+                    <name>numerator</name>
+                    <description>Automatically generated feature</description>
+                    <rangeTypeName>uima.cas.String</rangeTypeName>
+                </featureDescription>
+                <featureDescription>
+                    <name>denominator</name>
+                    <description>Automatically generated feature</description>
+                    <rangeTypeName>uima.cas.String</rangeTypeName>
+                </featureDescription>
+                <featureDescription>
+                    <name>numberType</name>
+                    <description>Automatically generated feature</description>
+                    <rangeTypeName>edu.umn.biomedicus.numbers.NumberType</rangeTypeName>
+                </featureDescription>
+            </features>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.NumberRange</name>
+            <description>Automatically generated type from edu.umn.biomedicus.measures.NumberRange</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+            <features>
+                <featureDescription>
+                    <name>lower</name>
+                    <description>Automatically generated feature</description>
+                    <rangeTypeName>uima.cas.String</rangeTypeName>
+                </featureDescription>
+                <featureDescription>
+                    <name>upper</name>
+                    <description>Automatically generated feature</description>
+                    <rangeTypeName>uima.cas.String</rangeTypeName>
+                </featureDescription>
+            </features>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.OtherAcronymSense</name>
+            <description>Automatically generated type from edu.umn.biomedicus.acronyms.OtherAcronymSense</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+            <features>
+                <featureDescription>
+                    <name>text</name>
+                    <description>Automatically generated feature</description>
+                    <rangeTypeName>uima.cas.String</rangeTypeName>
+                </featureDescription>
+                <featureDescription>
+                    <name>hasSpaceAfter</name>
+                    <description>Automatically generated feature</description>
+                    <rangeTypeName>uima.cas.Boolean</rangeTypeName>
+                </featureDescription>
+                <featureDescription>
+                    <name>score</name>
+                    <description>Automatically generated feature</description>
+                    <rangeTypeName>uima.cas.Double</rangeTypeName>
+                </featureDescription>
+            </features>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.Paragraph</name>
+            <description>Automatically generated type from edu.umn.biomedicus.structure.Paragraph</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.ParseToken</name>
+            <description>Automatically generated type from edu.umn.biomedicus.tokenization.ParseToken</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+            <features>
+                <featureDescription>
+                    <name>text</name>
+                    <description>Automatically generated feature</description>
+                    <rangeTypeName>uima.cas.String</rangeTypeName>
+                </featureDescription>
+                <featureDescription>
+                    <name>hasSpaceAfter</name>
+                    <description>Automatically generated feature</description>
+                    <rangeTypeName>uima.cas.Boolean</rangeTypeName>
+                </featureDescription>
+            </features>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.PosTag</name>
+            <description>Automatically generated type from edu.umn.biomedicus.tagging.PosTag</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+            <features>
+                <featureDescription>
+                    <name>partOfSpeech</name>
+                    <description>Automatically generated feature</description>
+                    <rangeTypeName>edu.umn.biomedicus.common.types.syntax.PartOfSpeech</rangeTypeName>
+                </featureDescription>
+            </features>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.Probable</name>
+            <description>Automatically generated type from edu.umn.biomedicus.modification.Probable</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+            <features>
+                <featureDescription>
+                    <name>cueTerms</name>
+                    <description>Automatically generated feature</description>
+                    <rangeTypeName>uima.cas.FSArray</rangeTypeName>
+                    <elementType>biomedicus.v2.ModificationCue</elementType>
+                </featureDescription>
+            </features>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.Quantifier</name>
+            <description>Automatically generated type from edu.umn.biomedicus.measures.Quantifier</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+            <features>
+                <featureDescription>
+                    <name>isExact</name>
+                    <description>Automatically generated feature</description>
+                    <rangeTypeName>uima.cas.Boolean</rangeTypeName>
+                </featureDescription>
+            </features>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.Relative</name>
+            <description>Automatically generated type from edu.umn.biomedicus.family.Relative</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+            <features>
+                <featureDescription>
+                    <name>value</name>
+                    <description>Automatically generated feature</description>
+                    <rangeTypeName>uima.cas.String</rangeTypeName>
+                </featureDescription>
+            </features>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.Row</name>
+            <description>Automatically generated type from edu.umn.biomedicus.structure.Row</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.SeasonWord</name>
+            <description>Automatically generated type from edu.umn.biomedicus.time.SeasonWord</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.Section</name>
+            <description>Automatically generated type from edu.umn.biomedicus.sections.Section</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+            <features>
+                <featureDescription>
+                    <name>kind</name>
+                    <description>Automatically generated feature</description>
+                    <rangeTypeName>uima.cas.String</rangeTypeName>
+                </featureDescription>
+            </features>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.SectionContent</name>
+            <description>Automatically generated type from edu.umn.biomedicus.sections.SectionContent</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.SectionHeader</name>
+            <description>Automatically generated type from edu.umn.biomedicus.sections.SectionHeader</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.Sentence</name>
+            <description>Automatically generated type from edu.umn.biomedicus.sentences.Sentence</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+            <features>
+                <featureDescription>
+                    <name>sentenceClass</name>
+                    <description>Automatically generated feature</description>
+                    <rangeTypeName>uima.cas.Integer</rangeTypeName>
+                </featureDescription>
+            </features>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.StandaloneQuantifier</name>
+            <description>Automatically generated type from edu.umn.biomedicus.measures.StandaloneQuantifier</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.StopWord</name>
+            <description>Automatically generated type from edu.umn.biomedicus.stopwords.StopWord</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.TemporalPhrase</name>
+            <description>Automatically generated type from edu.umn.biomedicus.time.TemporalPhrase</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.TermToken</name>
+            <description>Automatically generated type from edu.umn.biomedicus.tokenization.TermToken</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+            <features>
+                <featureDescription>
+                    <name>text</name>
+                    <description>Automatically generated feature</description>
+                    <rangeTypeName>uima.cas.String</rangeTypeName>
+                </featureDescription>
+                <featureDescription>
+                    <name>hasSpaceAfter</name>
+                    <description>Automatically generated feature</description>
+                    <rangeTypeName>uima.cas.Boolean</rangeTypeName>
+                </featureDescription>
+            </features>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.TextDate</name>
+            <description>Automatically generated type from edu.umn.biomedicus.time.TextDate</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.TextSegment</name>
+            <description>Automatically generated type from edu.umn.biomedicus.sentences.TextSegment</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.TextTime</name>
+            <description>Automatically generated type from edu.umn.biomedicus.time.TextTime</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.TimeFrequencyUnit</name>
+            <description>Automatically generated type from edu.umn.biomedicus.measures.TimeFrequencyUnit</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.TimeOfDayWord</name>
+            <description>Automatically generated type from edu.umn.biomedicus.time.TimeOfDayWord</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.TimeUnit</name>
+            <description>Automatically generated type from edu.umn.biomedicus.measures.TimeUnit</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.TokenCandidate</name>
+            <description>Automatically generated type from edu.umn.biomedicus.tokenization.TokenCandidate</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.UmlsConcept</name>
+            <description>Automatically generated type from edu.umn.biomedicus.concepts.UmlsConcept</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+            <features>
+                <featureDescription>
+                    <name>sui</name>
+                    <description>Automatically generated feature</description>
+                    <rangeTypeName>uima.cas.String</rangeTypeName>
+                </featureDescription>
+                <featureDescription>
+                    <name>cui</name>
+                    <description>Automatically generated feature</description>
+                    <rangeTypeName>uima.cas.String</rangeTypeName>
+                </featureDescription>
+                <featureDescription>
+                    <name>tui</name>
+                    <description>Automatically generated feature</description>
+                    <rangeTypeName>uima.cas.String</rangeTypeName>
+                </featureDescription>
+                <featureDescription>
+                    <name>source</name>
+                    <description>Automatically generated feature</description>
+                    <rangeTypeName>uima.cas.String</rangeTypeName>
+                </featureDescription>
+                <featureDescription>
+                    <name>confidence</name>
+                    <description>Automatically generated feature</description>
+                    <rangeTypeName>uima.cas.Double</rangeTypeName>
+                </featureDescription>
+            </features>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.Underlined</name>
+            <description>Automatically generated type from edu.umn.biomedicus.formatting.Underlined</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.UsageFrequency</name>
+            <description>Automatically generated type from edu.umn.biomedicus.sh.UsageFrequency</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.UsageFrequencyPhrase</name>
+            <description>Automatically generated type from edu.umn.biomedicus.sh.UsageFrequencyPhrase</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.UsageStatus</name>
+            <description>Automatically generated type from edu.umn.biomedicus.sh.UsageStatus</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.WordIndex</name>
+            <description>Automatically generated type from edu.umn.biomedicus.tokenization.WordIndex</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+            <features>
+                <featureDescription>
+                    <name>stringIdentifierIndex</name>
+                    <description>Automatically generated feature</description>
+                    <rangeTypeName>uima.cas.Integer</rangeTypeName>
+                </featureDescription>
+            </features>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.YearNumber</name>
+            <description>Automatically generated type from edu.umn.biomedicus.time.YearNumber</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+            <features>
+                <featureDescription>
+                    <name>value</name>
+                    <description>Automatically generated feature</description>
+                    <rangeTypeName>uima.cas.Integer</rangeTypeName>
+                </featureDescription>
+            </features>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.YearRange</name>
+            <description>Automatically generated type from edu.umn.biomedicus.time.YearRange</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.rtf.CellDefinitionEnd</name>
+            <description>Automatically generated type from edu.umn.biomedicus.rtf.CellDefinitionEnd</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+            <features>
+                <featureDescription>
+                    <name>name</name>
+                    <description>Automatically generated feature</description>
+                    <rangeTypeName>uima.cas.String</rangeTypeName>
+                </featureDescription>
+                <featureDescription>
+                    <name>param</name>
+                    <description>Automatically generated feature</description>
+                    <rangeTypeName>uima.cas.Integer</rangeTypeName>
+                </featureDescription>
+                <featureDescription>
+                    <name>index</name>
+                    <description>Automatically generated feature</description>
+                    <rangeTypeName>uima.cas.Integer</rangeTypeName>
+                </featureDescription>
+                <featureDescription>
+                    <name>known</name>
+                    <description>Automatically generated feature</description>
+                    <rangeTypeName>uima.cas.Boolean</rangeTypeName>
+                </featureDescription>
+            </features>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.rtf.CellEnd</name>
+            <description>Automatically generated type from edu.umn.biomedicus.rtf.CellEnd</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+            <features>
+                <featureDescription>
+                    <name>name</name>
+                    <description>Automatically generated feature</description>
+                    <rangeTypeName>uima.cas.String</rangeTypeName>
+                </featureDescription>
+                <featureDescription>
+                    <name>param</name>
+                    <description>Automatically generated feature</description>
+                    <rangeTypeName>uima.cas.Integer</rangeTypeName>
+                </featureDescription>
+                <featureDescription>
+                    <name>index</name>
+                    <description>Automatically generated feature</description>
+                    <rangeTypeName>uima.cas.Integer</rangeTypeName>
+                </featureDescription>
+                <featureDescription>
+                    <name>known</name>
+                    <description>Automatically generated feature</description>
+                    <rangeTypeName>uima.cas.Boolean</rangeTypeName>
+                </featureDescription>
+            </features>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.rtf.IllegalXmlCharacter</name>
+            <description>Automatically generated type from edu.umn.biomedicus.rtf.IllegalXmlCharacter</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+            <features>
+                <featureDescription>
+                    <name>value</name>
+                    <description>Automatically generated feature</description>
+                    <rangeTypeName>uima.cas.Integer</rangeTypeName>
+                </featureDescription>
+            </features>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.rtf.LineBreak</name>
+            <description>Automatically generated type from edu.umn.biomedicus.rtf.LineBreak</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+            <features>
+                <featureDescription>
+                    <name>name</name>
+                    <description>Automatically generated feature</description>
+                    <rangeTypeName>uima.cas.String</rangeTypeName>
+                </featureDescription>
+                <featureDescription>
+                    <name>param</name>
+                    <description>Automatically generated feature</description>
+                    <rangeTypeName>uima.cas.Integer</rangeTypeName>
+                </featureDescription>
+                <featureDescription>
+                    <name>index</name>
+                    <description>Automatically generated feature</description>
+                    <rangeTypeName>uima.cas.Integer</rangeTypeName>
+                </featureDescription>
+                <featureDescription>
+                    <name>known</name>
+                    <description>Automatically generated feature</description>
+                    <rangeTypeName>uima.cas.Boolean</rangeTypeName>
+                </featureDescription>
+            </features>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.rtf.NestCellEnd</name>
+            <description>Automatically generated type from edu.umn.biomedicus.rtf.NestCellEnd</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+            <features>
+                <featureDescription>
+                    <name>name</name>
+                    <description>Automatically generated feature</description>
+                    <rangeTypeName>uima.cas.String</rangeTypeName>
+                </featureDescription>
+                <featureDescription>
+                    <name>param</name>
+                    <description>Automatically generated feature</description>
+                    <rangeTypeName>uima.cas.Integer</rangeTypeName>
+                </featureDescription>
+                <featureDescription>
+                    <name>index</name>
+                    <description>Automatically generated feature</description>
+                    <rangeTypeName>uima.cas.Integer</rangeTypeName>
+                </featureDescription>
+                <featureDescription>
+                    <name>known</name>
+                    <description>Automatically generated feature</description>
+                    <rangeTypeName>uima.cas.Boolean</rangeTypeName>
+                </featureDescription>
+            </features>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.rtf.NestRowEnd</name>
+            <description>Automatically generated type from edu.umn.biomedicus.rtf.NestRowEnd</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+            <features>
+                <featureDescription>
+                    <name>name</name>
+                    <description>Automatically generated feature</description>
+                    <rangeTypeName>uima.cas.String</rangeTypeName>
+                </featureDescription>
+                <featureDescription>
+                    <name>param</name>
+                    <description>Automatically generated feature</description>
+                    <rangeTypeName>uima.cas.Integer</rangeTypeName>
+                </featureDescription>
+                <featureDescription>
+                    <name>index</name>
+                    <description>Automatically generated feature</description>
+                    <rangeTypeName>uima.cas.Integer</rangeTypeName>
+                </featureDescription>
+                <featureDescription>
+                    <name>known</name>
+                    <description>Automatically generated feature</description>
+                    <rangeTypeName>uima.cas.Boolean</rangeTypeName>
+                </featureDescription>
+            </features>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.rtf.NewParagraph</name>
+            <description>Automatically generated type from edu.umn.biomedicus.rtf.NewParagraph</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+            <features>
+                <featureDescription>
+                    <name>name</name>
+                    <description>Automatically generated feature</description>
+                    <rangeTypeName>uima.cas.String</rangeTypeName>
+                </featureDescription>
+                <featureDescription>
+                    <name>param</name>
+                    <description>Automatically generated feature</description>
+                    <rangeTypeName>uima.cas.Integer</rangeTypeName>
+                </featureDescription>
+                <featureDescription>
+                    <name>index</name>
+                    <description>Automatically generated feature</description>
+                    <rangeTypeName>uima.cas.Integer</rangeTypeName>
+                </featureDescription>
+                <featureDescription>
+                    <name>known</name>
+                    <description>Automatically generated feature</description>
+                    <rangeTypeName>uima.cas.Boolean</rangeTypeName>
+                </featureDescription>
+            </features>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.rtf.ParagraphInTable</name>
+            <description>Automatically generated type from edu.umn.biomedicus.rtf.ParagraphInTable</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.rtf.RowEnd</name>
+            <description>Automatically generated type from edu.umn.biomedicus.rtf.RowEnd</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+            <features>
+                <featureDescription>
+                    <name>name</name>
+                    <description>Automatically generated feature</description>
+                    <rangeTypeName>uima.cas.String</rangeTypeName>
+                </featureDescription>
+                <featureDescription>
+                    <name>param</name>
+                    <description>Automatically generated feature</description>
+                    <rangeTypeName>uima.cas.Integer</rangeTypeName>
+                </featureDescription>
+                <featureDescription>
+                    <name>index</name>
+                    <description>Automatically generated feature</description>
+                    <rangeTypeName>uima.cas.Integer</rangeTypeName>
+                </featureDescription>
+                <featureDescription>
+                    <name>known</name>
+                    <description>Automatically generated feature</description>
+                    <rangeTypeName>uima.cas.Boolean</rangeTypeName>
+                </featureDescription>
+            </features>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.rtf.TableRowFormattingDefaults</name>
+            <description>Automatically generated type from edu.umn.biomedicus.rtf.TableRowFormattingDefaults</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+            <features>
+                <featureDescription>
+                    <name>name</name>
+                    <description>Automatically generated feature</description>
+                    <rangeTypeName>uima.cas.String</rangeTypeName>
+                </featureDescription>
+                <featureDescription>
+                    <name>param</name>
+                    <description>Automatically generated feature</description>
+                    <rangeTypeName>uima.cas.Integer</rangeTypeName>
+                </featureDescription>
+                <featureDescription>
+                    <name>index</name>
+                    <description>Automatically generated feature</description>
+                    <rangeTypeName>uima.cas.Integer</rangeTypeName>
+                </featureDescription>
+                <featureDescription>
+                    <name>known</name>
+                    <description>Automatically generated feature</description>
+                    <rangeTypeName>uima.cas.Boolean</rangeTypeName>
+                </featureDescription>
+            </features>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.rtf.UnknownControlWord</name>
+            <description>Automatically generated type from edu.umn.biomedicus.rtf.UnknownControlWord</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+            <features>
+                <featureDescription>
+                    <name>name</name>
+                    <description>Automatically generated feature</description>
+                    <rangeTypeName>uima.cas.String</rangeTypeName>
+                </featureDescription>
+                <featureDescription>
+                    <name>param</name>
+                    <description>Automatically generated feature</description>
+                    <rangeTypeName>uima.cas.Integer</rangeTypeName>
+                </featureDescription>
+                <featureDescription>
+                    <name>index</name>
+                    <description>Automatically generated feature</description>
+                    <rangeTypeName>uima.cas.Integer</rangeTypeName>
+                </featureDescription>
+                <featureDescription>
+                    <name>known</name>
+                    <description>Automatically generated feature</description>
+                    <rangeTypeName>uima.cas.Boolean</rangeTypeName>
+                </featureDescription>
+            </features>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2.rtf.ViewIndex</name>
+            <description>Automatically generated type from edu.umn.biomedicus.rtf.ViewIndex</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+            <features>
+                <featureDescription>
+                    <name>destinationName</name>
+                    <description>Automatically generated feature</description>
+                    <rangeTypeName>uima.cas.String</rangeTypeName>
+                </featureDescription>
+                <featureDescription>
+                    <name>destinationIndex</name>
+                    <description>Automatically generated feature</description>
+                    <rangeTypeName>uima.cas.Integer</rangeTypeName>
+                </featureDescription>
+            </features>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2_1.EmbeddingToken</name>
+            <description>Automatically generated type from edu.umn.biomedicus.tokenization.EmbeddingToken</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+            <features>
+                <featureDescription>
+                    <name>text</name>
+                    <description>Automatically generated feature</description>
+                    <rangeTypeName>uima.cas.String</rangeTypeName>
+                </featureDescription>
+                <featureDescription>
+                    <name>hasSpaceAfter</name>
+                    <description>Automatically generated feature</description>
+                    <rangeTypeName>uima.cas.Boolean</rangeTypeName>
+                </featureDescription>
+            </features>
+        </typeDescription>
+        <typeDescription>
+            <name>biomedicus.v2_1.PersonalIdentifier</name>
+            <description>Automatically generated type from edu.umn.biomedicus.deidentification.PersonalIdentifier</description>
+            <supertypeName>uima.tcas.Annotation</supertypeName>
+        </typeDescription>
+        <typeDescription>
+            <name>edu.umn.biomedicus.common.types.syntax.PartOfSpeech</name>
+            <description>Automatically generated type from edu.umn.biomedicus.common.types.syntax.PartOfSpeech</description>
+            <supertypeName>uima.cas.String</supertypeName>
+            <allowedValues>
+                <value>
+                    <string>CC</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>CD</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>DT</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>EX</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>FW</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>IN</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>JJ</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>JJR</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>JJS</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>LS</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>MD</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>NN</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>NNS</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>NNP</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>NNPS</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>PDT</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>POS</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>PRP</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>PRP$</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>RB</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>RBR</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>RBS</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>RP</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>SYM</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>TO</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>UH</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>VB</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>VBD</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>VBG</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>VBN</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>VBP</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>VBZ</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>WDT</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>WP</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>WP$</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>WRB</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>SENTENCE_CLOSER_PUNCTUATION</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>COMMA_PUNCTUATION</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>COLON_PUNCTUATION</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>LEFT_PAREN</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>RIGHT_PAREN</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>OPENING_QUOTATION</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>CLOSING_QUOTATION</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>OPENING_SINGLE_QUOTE</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>CLOSING_SINGLE_QUOTE</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>STRAIGHT_DOUBLE_QUOTE</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>POUND_SIGN</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>DOLLAR_SIGN</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>HYPH</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>AFX</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>GW</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>XX</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>BBS</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>BOS</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>EOS</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>ADD</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>NFP</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+            </allowedValues>
+        </typeDescription>
+        <typeDescription>
+            <name>edu.umn.biomedicus.numbers.NumberType</name>
+            <description>Automatically generated type from edu.umn.biomedicus.numbers.NumberType</description>
+            <supertypeName>uima.cas.String</supertypeName>
+            <allowedValues>
+                <value>
+                    <string>CARDINAL</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>ORDINAL</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>FRACTION</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>DECIMAL</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+            </allowedValues>
+        </typeDescription>
+        <typeDescription>
+            <name>edu.umn.biomedicus.parsing.UDRelation</name>
+            <description>Automatically generated type from edu.umn.biomedicus.parsing.UDRelation</description>
+            <supertypeName>uima.cas.String</supertypeName>
+            <allowedValues>
+                <value>
+                    <string>ACL</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>ADVCL</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>ADVMOD</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>AMOD</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>APPOS</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>AUX</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>AUXPASS</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>CASE</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>CC</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>CCOMP</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>CLF</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>COMPOUND</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>CONJ</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>COP</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>CSUBJ</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>CSUBJPASS</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>DEP</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>DET</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>DISCOURSE</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>DISLOCATED</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>DOBJ</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>EXPL</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>FIXED</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>FLAT</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>GOESWITH</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>IOBJ</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>LIST</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>MARK</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>MWE</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>NAME</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>NEG</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>NMOD</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>NSUBJ</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>NSUBJPASS</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>NUMMOD</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>OBJ</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>OBL</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>ORPHAN</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>PARATAXIS</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>PUNCT</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>REPARANDUM</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>REMNANT</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>ROOT</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>VOCATIVE</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+                <value>
+                    <string>XCOMP</string>
+                    <description>Auto generated from enum constant</description>
+                </value>
+            </allowedValues>
+        </typeDescription>
+    </types>
+</typeSystemDescription>
