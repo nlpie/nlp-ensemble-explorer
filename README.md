@@ -58,12 +58,11 @@ General format of reference/gold standard data:
 
 ### To use data in nlp_ensemble_explorer.ipynb:
 
-Extract ensembling.sql.zip and import into MySQL. Configure `engine` variable in `get_metric_data` method with database name and user credentials. Reference tables are then defined in the `AnalysisConfig` class, according to corpus.
+Extract ensembling.sql.zip and import into MySQL. 
 
-Place `analytical_cui_CORPUSNAME_concepts.csv` files in desired directory and change `data_dir` attribute accordingly in the `AnalysisConfig` class.
+Configure `engine` variable with database name and user credentials and data directory in first cell. Reference tables are then defined in the `AnalysisConfig` class, according to corpus.
 
-Within `data_dir` location create a direcory called `single_system_out` (for running single system performance evaluation)
-
+Place `analytical_cui_CORPUSNAME_concepts.csv` files in desired data directory and change `data_dir` attribute accordingly in first cell.
 
 ## Requirements:
 
@@ -73,8 +72,7 @@ Some special libraries include:
 
    - cassis (needed to parse UIMA CAS objects into JSON for use in python; (if needed, install from the dkpro github instance)
    - pymsql
-   - shelve (for persistant storage of i-o labeled vectors)
-   - pythonds (for use of binary parse tree data structures and methods)
+   - pythonds (for use of parse tree data structures and methods)
 
 
 
