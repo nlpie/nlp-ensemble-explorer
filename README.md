@@ -75,6 +75,8 @@ Some special libraries include:
    
 ## Desiderata
 
+### System UMLS lookup
+
 BioMedICUS uses a tiered scoring technique for matching UMLS concepts to phrases by first performing direct dictionary phrase matches, second by lower-cased dictionary phrase matches, and lastly using a discontinuous bag of SPECIALIST normalized terms matches. 
 
 cTAKES matches UMLS concepts to phrases, by each phrase’s lexical and non-lexical permutations and variations against concepts in a dictionary and a list of maintained terms.[1]
