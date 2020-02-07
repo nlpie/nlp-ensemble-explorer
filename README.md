@@ -73,7 +73,7 @@ Some special libraries include:
    - pymsql
    - pythonds (for use of parse tree data structures and methods)
    
-## Desiderada
+## Desiderata
 
 BioMedICUS uses a tiered scoring technique for matching UMLS concepts to phrases by first performing direct dictionary phrase matches, second by lower-cased dictionary phrase matches, and lastly using a discontinuous bag of SPECIALIST normalized terms matches. 
 
