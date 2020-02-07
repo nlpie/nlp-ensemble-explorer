@@ -75,6 +75,15 @@ Some special libraries include:
    
 ## Desiderata
 
+### Optimizations
+
+Initial optimizations to NLP-Ensemble-Explorer, including use of memozie caching, sped up processing time very significantly, it could still be optimized further. For example, run time for all corpora and all semantic aggregations was over 5 hours. 
+
+### Logical equivalence
+
+For the current release version of NLP-Ensemble-Explorer, we were not able to account for all cases of logical equivalence. While we we able to account for simple cases like (A∪B) = (B∪A), we were not able to exclude cases like (((A∩B)∪C)∪(D∩E)) = (((D∩E)∪C)∪(A∩B)), which could potential decrease total run time. To account for these cases in various analyses, we used the Pandas “drop_duplicates” method.
+
+
 ### System UMLS lookup
 
 BioMedICUS uses a tiered scoring technique for matching UMLS concepts to phrases by first performing direct dictionary phrase matches, second by lower-cased dictionary phrase matches, and lastly using a discontinuous bag of SPECIALIST normalized terms matches. 
