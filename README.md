@@ -83,6 +83,8 @@ Initial optimizations to NLP-Ensemble-Explorer, including use of memozie caching
 
 For the current release version of NLP-Ensemble-Explorer, we were not able to account for all cases of logical equivalence. While we we able to account for simple cases like (A∪B) = (B∪A), we were not able to exclude cases like (((A∩B)∪C)∪(D∩E)) = (((D∩E)∪C)∪(A∩B)), which could potential decrease total run time. To account for these cases in various analyses, we used the Pandas “drop_duplicates” method.
 
+### Semantic group usage 
+Choice of Annotation Type for grouping cTAKES concepts was a convenience over use of the available TUI, especially since it mapped directly to the groupings defined for all corpora. An examination of TUIs associated with specific Annotation Type aggregation in cTAKES confirms that there is a slight advantage of the use of this over use of TUIs, since a number of TUIs mapped by cTAKES to the annotation types DiseaseDisordermention and SignSymptomMention were classified within the UMLS in semantic groups not covered by any of the corpora (specifically,  Activities & Behaviors, Phenomena and Physiology), but were properly classified by cTAKES.
 
 ### System UMLS lookup
 
