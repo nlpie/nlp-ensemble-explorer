@@ -2,7 +2,7 @@
 
 Code for parsing and evaluating system performance of extracted UMLS concepts and CUIs from relevant corpora
 
-*TODO: add otherannotation tasks (e.g., abbreviation disambiguation)*
+*TODO: add other annotation tasks (e.g., abbreviation disambiguation)*
 
 ## Parsing manually annotated corpora:
 
@@ -14,7 +14,7 @@ TODO: fv017 to be processed through NLP-ADAPT
 
 ## Parsing system annotated corpora:
 
-  -> system_annotations.ipynb:
+  ### system_annotations.ipynb:
 
 1. Parse UIMA based CAS objects
 2. Create analytical sets based on corpus with general format
@@ -23,7 +23,7 @@ TODO: clean up and consolidate with system_master.ipynb
 
 ## Performance evaluation of single system and all combinatoric permutations of Boolean merges (unions and intersections)
 
-  -> nlp_ensemble_explorer.ipynb
+  ### nlp_ensemble_explorer.ipynb
 
 TODO:
 
