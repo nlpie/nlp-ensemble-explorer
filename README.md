@@ -75,6 +75,10 @@ Some special libraries include:
    
 ## Desiderata
 
+### Set operation notation
+
+We use the operator `|` to represent a Boolean OR operation (or union: ∪) and `&` to represent a Boolean AND oepration (or intersection: ∩)
+
 ### Optimizations
 
 Initial optimizations to NLP-Ensemble-Explorer, including use of memozie caching, sped up processing time very significantly, it could still be optimized further. For example, run time for all corpora and all semantic aggregations was over 5 hours. 
