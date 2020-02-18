@@ -12,7 +12,7 @@ Code for parsing and evaluating system performance of extracted UMLS concepts an
 
 ## Parsing system annotated corpora:
 
-  ### system_annotations.ipynb:
+   - system_annotations/system_annotations.ipynb
 
 1. Parse UIMA based CAS objects
 2. Create analytical sets based on corpus with general format
@@ -21,13 +21,11 @@ TODO: clean up and consolidate with system_master.ipynb
 
 ## Performance evaluation of single system and all combinatoric permutations of Boolean merges (unions and intersections)
 
-  ### nlp_ensemble_explorer.ipynb
-
-TODO:
+   - nlp_ensemble_explorer.ipynb
 
 ## Data
 
-1. System annotated data have been consolidated by corpora into files named: analytical_cui_CORPUSNAME_concepts.csv
+1. System annotated data have been consolidated by corpora into files named: analytical_CORPUSNAME.csv
 
 General format of system data:
 
