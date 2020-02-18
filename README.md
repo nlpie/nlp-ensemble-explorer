@@ -4,13 +4,11 @@ Code for parsing and evaluating system performance of extracted UMLS concepts an
 
 *TODO: add other annotation tasks (e.g., abbreviation disambiguation)*
 
-## Parsing manually annotated corpora in folder `reference_annotations`:
+## Parsing manually annotated corpora:
 
-   - mipacq_reference.ipynb: MiPACQ clinical notes
-   - i2b2_reference.ipynb: i2b2 2010 challenge set of clinical notes
-   - fairview_reference.ipynb: fv017 clinical notes
-
-TODO: fv017 to be processed through NLP-ADAPT
+   - reference_annotations/mipacq_reference.ipynb: MiPACQ clinical notes
+   - reference_annotations/i2b2_reference.ipynb: i2b2 2010 challenge set of clinical notes
+   - reference_annotations/fairview_reference.ipynb: fvr01 clinical notes
 
 ## Parsing system annotated corpora:
 
