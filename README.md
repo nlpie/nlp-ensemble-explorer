@@ -2,19 +2,17 @@
 
 Code for parsing and evaluating system performance of extracted UMLS concepts and CUIs from relevant corpora
 
-*TODO: add otherannotation tasks (e.g., abbreviation disambiguation)*
+*TODO: add other annotation tasks (e.g., abbreviation disambiguation)*
 
 ## Parsing manually annotated corpora:
 
-   - -> mipacq_reference.ipynb: MiPACQ clinical notes
-   - -> i2b2_reference.ipynb: i2b2 2010 challenge set of clinical notes
-   - -> fairview_reference.ipynb: fv017 clinical notes
-
-TODO: fv017 to be processed through NLP-ADAPT
+   - reference_annotations/mipacq_reference.ipynb: MiPACQ clinical notes
+   - reference_annotations/i2b2_reference.ipynb: i2b2 2010 challenge set of clinical notes
+   - reference_annotations/fairview_reference.ipynb: fvr01 clinical notes
 
 ## Parsing system annotated corpora:
 
-  -> system_annotations.ipynb:
+   - system_annotations/system_annotations.ipynb
 
 1. Parse UIMA based CAS objects
 2. Create analytical sets based on corpus with general format
@@ -23,13 +21,11 @@ TODO: clean up and consolidate with system_master.ipynb
 
 ## Performance evaluation of single system and all combinatoric permutations of Boolean merges (unions and intersections)
 
-  -> nlp_ensemble_explorer.ipynb
-
-TODO:
+   - nlp_ensemble_explorer.ipynb
 
 ## Data
 
-1. System annotated data have been consolidated by corpora into files named: analytical_cui_CORPUSNAME_concepts.csv
+1. System annotated data have been consolidated by corpora into files named: analytical_CORPUSNAME.csv
 
 General format of system data:
 
@@ -74,6 +70,10 @@ Some special libraries include:
    - pythonds (for use of parse tree data structures and methods)
    
 ## Desiderata
+
+### Set operation notation
+
+We use the operator `|` to represent a Boolean OR operation (or union: ∪) and `&` to represent a Boolean AND oepration (or intersection: ∩)
 
 ### Optimizations
 
