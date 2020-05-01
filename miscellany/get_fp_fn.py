@@ -72,3 +72,4 @@ analysis_type = 'FP'  # default for method is 'FN'
 
 df = span_to_text(pd.read_csv(gold).drop_duplicates(),pd.read_csv(system).drop_duplicates(), analysis_type)
 print(len(df))
+pd.to_csv('fp.csv')
