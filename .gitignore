@@ -1,6 +1,5 @@
 .ipynb_checkpoints
 *.csv
-*.sql
 .DS_Store
 *.swp
 __pycache__
