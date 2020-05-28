@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[1]:
+# In[2]:
 
 
 import pandas as pd
@@ -35,10 +35,13 @@ data_directory = '/Users/gms/development/nlp/nlpie/data/ensembling-u01/output/'
 engine = create_engine('mysql+pymysql://gms:nej123@localhost/concepts', pool_pre_ping=True)
 
 
-# In[70]:
+# In[80]:
 
 
-# In[4]:
+get_ipython().system('jupyter nbconvert --to script bernouli_tests.ipynb')
+
+
+# In[3]:
 
 
 # confidence intervals
@@ -84,6 +87,18 @@ def f1_score_confidence_interval(r, p, dr, dp):
 # recall_obs = 63
 
 # [r, dr, r_upper_bound, r_lower_bound] = normal_approximation_binomial_confidence_interval(recall_successes, recall_obs)
+
+
+# In[3]:
+
+
+dir_to_process = "/Users/gms/development/nlp/nlpie/data/ensembling-u01/output/submission/files_for_ci"
+
+
+# In[3]:
+
+
+
 
 
 # In[66]:
@@ -794,8 +809,102 @@ print('-----------------')
 print('-----------------')
 
 
+# In[26]:
+
+
+# get var for single system 
+import pandas as pd
+input_dir = '/Users/gms/development/nlp/nlpie/data/ensembling-u01/output/submission/'
+
+file = 'single_system_summary_new.csv'
+
+# change metric here
+
+m_labels = ['F1']
+corpora = ['fairview', 'i2b2', 'mipacq']
+systems = ['biomedicus', 'clamp', 'ctakes', 'metamap', 'quick_umls']
+semtypes = ['Anatomy',
+            'Findings',
+            'Chemicals&Drugs',
+            'Procedures',
+            'all']
+
+print('Single system F1-score, n_sys and variance by corpus, semantic aggregation, and system:')
+for corpus in corpora:
+    for system in systems:
+        for st in semtypes:
+            #print('CORPUS:', corpus, st, system)
+            data = pd.read_csv(input_dir + file)
+            data = data[data['corpus']==corpus]
+            data = data[data['semtypes'] == st]
+            data = data[data['system'] == system]
+            if not data.empty:
+                metric = list()
+                ci = list()
+
+                # entire collection:
+                for row in data.itertuples():
+                    tp = row.TP
+                    fn = row.FN
+                    recall_obs = tp + fn 
+                    fp = row.FP
+                    precision_obs = tp + fp
+
+                    [r, dr, r_upper_bound, r_lower_bound] = normal_approximation_binomial_confidence_interval(tp, recall_obs)
+                    [p, dp, p_upper_bound, p_lower_bound] = normal_approximation_binomial_confidence_interval(tp, precision_obs)
+                    [f, df, f_upper_bound, f_lower_bound] = f1_score_confidence_interval(r, p, dr, dp)
+                    var_lower = f - f_upper_bound
+                    var_upper = f_lower_bound - f
+                    # print(var_lower == var_upper)
+                    if var_lower == var_upper:
+                        var = var_lower
+                        print(row.F1, row.n_sys, var, corpus, st, system)
+                        
+#                         ci.append((round(f_upper_bound, 3),round(f_lower_bound, 3), row.system, row.corpus, row.semtypes, row.F1))
+# #                     elif m_label == 'precision':
+# #                         m = row.precision
+# #                         ci.append((round(p_upper_bound, 3),round(p_lower_bound, 3), row.system, row.corpus, row.semtypes, row.precision))
+# #                     elif m_label == 'recall':
+# #                         m = row.recall
+# #                         ci.append((round(r_upper_bound, 3),round(r_lower_bound, 3), row.system, row.corpus, row.semtypes, row.recall))
+
+#                     metric.append(m)
+
+#                 # SS for max F1
+#                 M = max(metric) 
+
+#                 c_i = None
+#                 for c in ci:
+#                     if M == c[5]:
+#                         c_i = (c[0], c[1])
+
+#                 print('st max:', m_label, corpus)
+#                 for c in ci:
+#                     if (c_i[0] <= c[0] and c_i[1] > c[0]) or (c_i[0] >= c[0] and  c_i[0] < c[1]):
+#                         print(round(M, 3), c)
+
+#     #             ## SS wrt "All groups"
+#     #             c_i = None
+#     #             for c in ci:
+#     #                 if 'all' == c[4]:
+#     #                     c_i = (c[0], c[1])
+
+#     #             print('st all:')
+#     #             for c in ci:
+#     #             #     if c[0] <= F <= c[1]:
+#     #                 if (c_i[0] <= c[0] and c_i[1] > c[0]) or (c_i[0] >= c[0] and  c_i[0] < c[1]):
+#     #                     print(round(M, 3), c)
+
+#             print('-----------------')
+
+print('-----------------')
+print('-----------------')
+print('-----------------')
+print('-----------------')
+
+
 # In[ ]:
 
 
-
+# 
 
