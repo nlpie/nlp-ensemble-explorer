@@ -1,8 +1,8 @@
 from sqlalchemy.engine import create_engine
 import pymysql
 
-input_folder = '/Users/jacobsolinsky/programming/serguei/ensemble-explorer/data/input'
-output_folder = '/Users/jacobsolinsky/programming/serguei/ensemble-explorer/data/output'
+input_folder = '/Users/jacobsolinsky/programming/serguei/ensdup/ensemble-explorer/data/input'
+output_folder = '/Users/jacobsolinsky/programming/serguei/ensdup/ensemble-explorer/data/output'
 
 database_type = 'mysql+pymysql' # We use mysql+pymql as default
 database_username = 'gms'
