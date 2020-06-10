@@ -15,7 +15,7 @@ df['corpus'] = 'mipacq'
 df['system'] = 'reference'
 df['type'] = None
 df['string'] = df['text']
-df['semantic_type'] = None
+df['semantic_type'] = df['class']
 df = df.drop(['text', 'mentionSlot', 'start', 'class', 'value', 'classtype'], axis=1)
 df.to_sql('spacy', if_exists='append', con=engine, index=False,
     dtype={

@@ -26,18 +26,20 @@ for model in ("en_core_sci_sm","en_core_sci_md","en_core_sci_lg",
             df = pd.DataFrame(
                 [
                     [ent.end_char, ent.start_char, ent.text,
-                    int(ent._.umls_ents[0][0][1:]), ent._.umls_ents[0][1]]
+                    int(ent._.umls_ents[0][0][1:]), ent._.umls_ents[0][1],
+                    linker.umls.semantic_type_tree.type_id_to_node[
+                        linker.umls.cui_to_entity[ent._.umls_ents[0][0]].types[0]
+                    ].type_id]
                     if len(ent._.umls_ents) > 0
-                    else [ent.end_char, ent.start_char, ent.text,None, None]
+                    else [ent.end_char, ent.start_char, ent.text,None, None, None]
                     for ent in doc.ents
                 ],
-                columns=['end', 'begin', 'string', 'cui', 'score']
+                columns=['end', 'begin', 'string', 'cui', 'score', 'semantic_type']
             )
             df['file'] = file[:-4]
             df['corpus'] = 'mipacq'
             df['system'] = model
             df['type'] = None
-            df['semantic_type'] = None
             df.to_sql('spacy', if_exists='append', con=engine, index=False,
                 dtype={
                 'cui': Integer(),
