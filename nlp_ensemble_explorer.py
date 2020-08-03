@@ -18,6 +18,7 @@
 # In[ ]:
 
 #from guppy import hpy
+import combo_searcher.combo_searcher as cs
 import importlib as i
 import gevent
 from scipy import stats  
@@ -66,15 +67,6 @@ data_out = Path('/Users/gms/development/nlp/nlpie/data/ensembling-u01/output/')
 
 # STEP-3: CHOOSE WHICH SYSTEMS YOU'D LIKE TO EVALUATE AGAINST THE CORPUS REFERENCE SET
 systems = ['biomedicus', 'clamp', 'ctakes', 'metamap', 'quick_umls']
-#systems = ['biomedicus', 'clamp', 'metamap', 'quick_umls']
-#systems = ['biomedicus', 'quick_umls']
-#systems = ['biomedicus', 'ctakes', 'quick_umls']
-#systems = ['biomedicus', 'clamp', 'ctakes', 'metamap']
-#systems = ['biomedicus', 'clamp']
-#systems = ['ctakes', 'quick_umls', 'biomedicus', 'metamap']
-#systems = ['biomedicus', 'metamap', 'quick_umls']
-#systems = ['ray_test']
-#systems = ['metamap']
 
 # STEP-4: CHOOSE TYPE OF RUN:  
 rtype = 7      # OPTIONS INCLUDE: 2->Ensemble; 3->Tests; 4 -> majority vote; 6 -> add hoc ensemble; 7 -> complementarity
@@ -111,7 +103,7 @@ engine_request = str(database_type)+'://'+database_username+':'+database_passwor
 engine = create_engine(engine_request, pool_pre_ping=True, pool_size=20, max_overflow=30)
 
 # STEP-(8A): FILTER BY SEMTYPE
-filter_semtype = False
+filter_semtype = True #False
 
 # STEP-(8B): IF STEP-(8A) == True -> GET REFERENCE SEMTYPES
 
@@ -774,118 +766,114 @@ def vectorized_complementarity(r: object, analysis_type: str, corpus: str, c: tu
     else: 
         ann = get_ref_ann(analysis_type, corpus, filter_semtype)
     
-    if filter_semtype and SemanticTypes([semtype], corpus).get_system_type(r.sysA) and SemanticTypes([semtype], corpus).get_system_type(r.sysB) or not filter_semtype: 
+    #if filter_semtype and SemanticTypes([semtype], corpus).get_system_type(r.sysA) and SemanticTypes([semtype], corpus).get_system_type(r.sysB) or not filter_semtype: 
+    
+    '''
+    sysA = get_sys_data(r.sysA, analysis_type, corpus, filter_semtype, semtype)
+    sysB = get_sys_data(r.sysB, analysis_type, corpus, filter_semtype, semtype)
+    '''
+
+    sysA = r.sysA
+    sysB = r.sysB
+    sysA = sysA.rename(index=str, columns={"note_id": "case"})
+    sysB = sysB.rename(index=str, columns={"note_id": "case"})
+
+    if analysis_type == 'entity':
+        sysA["label"] = 'concept'
+        sysB["label"] = 'concept'
+        cols_to_keep = ['begin', 'end', 'case', 'label']
+    elif analysis_type == 'full':
+        sysA["label"] = sysA["cui"]
+        sysB["label"] = sysB["cui"]
+        cols_to_keep = ['begin', 'end', 'case', 'value', 'label']
+    elif analysis_type == 'cui':
+        sysA["label"] = sysA["cui"]
+        sysB["label"] = sysA["cui"]
+        cols_to_keep = ['case', 'cui', 'label']
+
+    sysA = sysA[cols_to_keep]
+    sysB = sysB[cols_to_keep]
+
+    if analysis_type == 'entity':
+        labels = ["concept"]
+    elif analysis_type in ['cui', 'full']:
+        labels = list(set(ann["value"].tolist()))
+
+    sys_a2 = list()
+    sys_b2 = list()
+    sys_ab2 = list()
+    ann2 = list()
+    s_a2 = list()
+    s_b2 = list()
+
+    sys2 = list()
+    a2 = list()
+    
+    cvals = list()
+
+    for n in range(len(docs)):
+
+        a1 = list(ann.loc[ann["case"] == docs[n][0]].itertuples(index=False))
+        ann1 = label_vector(docs[n][1], a1, labels)
+        ann2.append(list(ann1))
+
+        # get for Aright/Awrong and Bright/Bwrong
+        s_a1 = list(sysA.loc[sysA.case == docs[n][0]].itertuples(index=False))
+        s_b1 = list(sysB.loc[sysB.case == docs[n][0]].itertuples(index=False))
+        sys_a1 = label_vector(docs[n][1], s_a1, labels)
+        sys_b1 = label_vector(docs[n][1], s_b1, labels)
+
+        sys_a2.append(list(sys_a1))
+        sys_b2.append(list(sys_b1))
+
+        # intersected list this will give positive values
+        s_ab1 = list(set(s_a1).intersection(set(s_b1)))
         
-        '''
-        sysA = get_sys_data(r.sysA, analysis_type, corpus, filter_semtype, semtype)
-        sysB = get_sys_data(r.sysB, analysis_type, corpus, filter_semtype, semtype)
-        '''
-
-        sysA = r.sysA
-        sysB = r.sysB
-        sysA = sysA.rename(index=str, columns={"note_id": "case"})
-        sysB = sysB.rename(index=str, columns={"note_id": "case"})
-
-        if analysis_type == 'entity':
-            sysA["label"] = 'concept'
-            sysB["label"] = 'concept'
-            cols_to_keep = ['begin', 'end', 'case', 'label']
-        elif analysis_type == 'full':
-            sysA["label"] = sysA["cui"]
-            sysB["label"] = sysB["cui"]
-            cols_to_keep = ['begin', 'end', 'case', 'value', 'label']
-        elif analysis_type == 'cui':
-            sysA["label"] = sysA["cui"]
-            sysB["label"] = sysA["cui"]
-            cols_to_keep = ['case', 'cui', 'label']
-
-        sysA = sysA[cols_to_keep]
-        sysB = sysB[cols_to_keep]
-
-        if analysis_type == 'entity':
-            labels = ["concept"]
-        elif analysis_type in ['cui', 'full']:
-            labels = list(set(ann["value"].tolist()))
-
-        sys_a2 = list()
-        sys_b2 = list()
-        sys_ab2 = list()
-        ann2 = list()
-        s_a2 = list()
-        s_b2 = list()
-
-        sys2 = list()
-        a2 = list()
+        # in one set or other but not both for negative values
+        s_ab2 = list(set(s_a1).symmetric_difference(set(s_b1)))
         
-        cvals = list()
-
-        for n in range(len(docs)):
-
-            a1 = list(ann.loc[ann["case"] == docs[n][0]].itertuples(index=False))
-            ann1 = label_vector(docs[n][1], a1, labels)
-            ann2.append(list(ann1))
-
-            # get for Aright/Awrong and Bright/Bwrong
-            s_a1 = list(sysA.loc[sysA.case == docs[n][0]].itertuples(index=False))
-            s_b1 = list(sysB.loc[sysB.case == docs[n][0]].itertuples(index=False))
-            sys_a1 = label_vector(docs[n][1], s_a1, labels)
-            sys_b1 = label_vector(docs[n][1], s_b1, labels)
- 
-            sys_a2.append(list(sys_a1))
-            sys_b2.append(list(sys_b1))
-
-            # intersected list this will give positive values
-            s_ab1 = list(set(s_a1).intersection(set(s_b1)))
-            
-            # in one set or other but not both for negative values
-            s_ab2 = list(set(s_a1).symmetric_difference(set(s_b1)))
-            
-            s_ab1_ab2 = list(set(s_ab1).union(set(s_ab2)))
-            
-            sys_ab1 = label_vector(docs[n][1], s_ab1, labels)
-            sys_ab2.append(list(sys_ab1))
-            
-            sys_ab1_ab2 = label_vector(docs[n][1], s_ab1_ab2, labels)
-            
-            if len(s_ab1) == 0:
-                FP = FN = 0
-                #print(docs[n][0], FP, FN)
-            else:
-                _, _, FP, _ = confused(sys_ab1, ann1)
-                _, _, _, FN = confused(sys_ab1_ab2, ann1)
-            
-            cvals.append([FP, FN])
-
-        a2 = [item for sublist in ann2 for item in sublist]
-
-        # right/wrong for A and B
-        s_a2 = [item for sublist in sys_a2 for item in sublist]
-        s_b2 = [item for sublist in sys_b2 for item in sublist]
+        s_ab1_ab2 = list(set(s_ab1).union(set(s_ab2)))
         
-        FP = np.sum(cvals, axis=0)[0]
-        FN = np.sum(cvals, axis=0)[1]
-
-        _, _, aFP, aFN = confused(np.array(s_a2), np.array(a2))
-        _, _, bFP, bFN = confused(np.array(s_b2), np.array(a2))
-
-        b_over_a, a_over_b, mean_comp = complementarity_measures(FN, FP, aFN, aFP, bFN, bFP)
+        sys_ab1 = label_vector(docs[n][1], s_ab1, labels)
+        sys_ab2.append(list(sys_ab1))
         
-        b_over_a['system'] = str((r.nameB, r.nameA))
-        a_over_b['system'] = str((r.nameA, r.nameB))
-        mean_comp['system'] = 'mean_comp(' + r.nameA + ',' + r.nameB + ')'
+        sys_ab1_ab2 = label_vector(docs[n][1], s_ab1_ab2, labels)
         
-        frames = [out, pd.DataFrame(b_over_a, index=[0])]
-        out = pd.concat(frames, ignore_index=True, sort=False) 
+        if len(s_ab1) == 0:
+            FP = FN = 0
+            #print(docs[n][0], FP, FN)
+        else:
+            _, _, FP, _ = confused(sys_ab1, ann1)
+            _, _, _, FN = confused(sys_ab1_ab2, ann1)
         
-        frames = [out, pd.DataFrame(a_over_b, index=[0])]
-        out = pd.concat(frames, ignore_index=True, sort=False) 
+        cvals.append([FP, FN])
 
-        frames = [out, pd.DataFrame(mean_comp, index=[0])]
-        out = pd.concat(frames, ignore_index=True, sort=False) 
+    a2 = [item for sublist in ann2 for item in sublist]
 
-        
-    else:
-        print(str(c) + 'has no semtype', semtype)
+    # right/wrong for A and B
+    s_a2 = [item for sublist in sys_a2 for item in sublist]
+    s_b2 = [item for sublist in sys_b2 for item in sublist]
+    
+    FP = np.sum(cvals, axis=0)[0]
+    FN = np.sum(cvals, axis=0)[1]
+
+    _, _, aFP, aFN = confused(np.array(s_a2), np.array(a2))
+    _, _, bFP, bFN = confused(np.array(s_b2), np.array(a2))
+
+    b_over_a, a_over_b, mean_comp = complementarity_measures(FN, FP, aFN, aFP, bFN, bFP)
+    
+    b_over_a['system'] = str((r.nameB, r.nameA))
+    a_over_b['system'] = str((r.nameA, r.nameB))
+    mean_comp['system'] = 'mean_comp(' + r.nameA + ',' + r.nameB + ')'
+    
+    frames = [out, pd.DataFrame(b_over_a, index=[0])]
+    out = pd.concat(frames, ignore_index=True, sort=False) 
+    
+    frames = [out, pd.DataFrame(a_over_b, index=[0])]
+    out = pd.concat(frames, ignore_index=True, sort=False) 
+
+    frames = [out, pd.DataFrame(mean_comp, index=[0])]
+    out = pd.concat(frames, ignore_index=True, sort=False) 
 
     return out
         
@@ -1652,15 +1640,6 @@ def get_metrics(boolean_expression: str, analysis_type: str, corpus: str, run_ty
         return d
 
 
-# In[ ]:
-
-
-#get_valid_systems(['biomedicus'], 'Anatomy')
-
-
-# In[ ]:
-
-
 # generate all combinations of given list of annotators:
 def partly_unordered_permutations(lst, k):
     elems = set(lst)
@@ -1893,7 +1872,7 @@ def get_merge_data(boolean_expression: str, analysis_type: str, corpus: str, run
             pass
         
         # get matched data from merge
-        return results.system_merges, d # merge_eval(reference_only, system_only, reference_system_match, system_n, reference_n)
+        return d # merge_eval(reference_only, system_only, reference_system_match, system_n, reference_n)
 
     else:
         return results.system_merges
@@ -2234,30 +2213,79 @@ def majority_exact_vote_out(sys, filter_semtype, semtype = None):
         # get dictionary of confusion matrix metrics
         print(cm_dict(c.ref_only, c.system_only, c.ref_system_match, c.system_n, c.ref_n))
         return cm_dict(c.ref_only, c.system_only, c.ref_system_match, c.system_n, c.ref_n)
-    
-#ensemble_type = 'vote'        
-#filter_semtype = False
-#majority_vote(systems, analysis_type, corpus, run_type, filter_semtype, semtypes)
 
-def ad_hoc_measure(statement, analysis_type, corpus, measure):
+def get_enesemble_combos(systems=['biomedicus', 'clamp', 'ctakes', 'metamap', 'quick_umls']): 
+        # get a ensemble combinations
+        def get_result():
+            result = cs.get_best_ensembles(score_method=cs.length_score,
+                               names=['biomedicus', 'clamp', 'ctakes', 'metamap', 'quick_umls'],
+                               operators=['&', '|'],
+                               order=None,
+                               minimum_increase=0)
 
-    _, d = get_merge_data(statement, analysis_type, corpus, run_type, filter_semtypei, metrics = True)
+            #print(result.print_all_no_score())
+            return result.print_all_no_score()
+
+
+        results = get_result()
+
+        # tetrun True if number of operators found in expression
+        def n_operators(x, y, n, m, o):
+
+            s1 = sum([x.count(o[0]), x.count(o[1])])
+            s2 = sum([y.count(o[0]), y.count(o[1])])
+            if s1 == n and s2 == m:
+              return True
+            else:
+              return False
+        
+        # return length of overlap
+        def overlap(expr1, expr2, operators):
+
+            s1 = expr1
+            s2 = expr2
+
+            for o in operators:
+                s1 = s1.replace(o, ' ')
+                s2 = s2.replace(o, ' ')
+
+            s1 = s1.replace('(', '').replace(')','').split()
+            s2 = s2.replace('(', '').replace(')','').split()
+
+
+            return len(set(s1).intersection(set(s2)))
+
+        #systems=['biomedicus', 'clamp', 'ctakes', 'metamap', 'quick_umls']
+        operators = ['&', '|']
+
+        # parse out into all paired combos for comparison
+        test = [r for r in results if sum([r.count('|'), r.count('&')]) < len(systems) - 1]
+        out = list(combinations(test, 2))
+        expressions = [o for i in range(len(systems) - 2) for j in range(len(systems) - 2)  if i + j < len(systems) - 1 for o in out if n_operators(o[0], o[1], i, j, operators) and overlap(o[0], o[1], operators) == 0]
+
+
+        return expressions
+
+# use with combo_searcher
+def ad_hoc_measure(statement, analysis_type, corpus, measure, metrics = True, semtype = None):
+
+    d = get_merge_data(statement, analysis_type, corpus, run_type, filter_semtype, metrics = True, semtype = None)
 
     if measure in ['F1', 'precision', 'recall']:
         return d[measure]
     else:
         print('Invalid measure!')
 
-def ad_hoc_sys(statement, analysis_type, corpus):
+def ad_hoc_sys(statement, analysis_type, corpus, metrics = False, semtype = None):
 
-    sys = get_merge_data(statement, analysis_type, corpus, run_type, filter_semtype, metrics = False)
+    sys = get_merge_data(statement, analysis_type, corpus, run_type, filter_semtype, metrics, semtype)
 
     return sys
 
-#%%time
-#@profile
 def main():
     '''
+        Control for:
+
         corpora: i2b2, mipacq, fv017
         analyses: entity only (exact span), cui by document, full (aka (entity and cui on exaact span/exact cui)
         systems: ctakes, biomedicus, clamp, metamap, quick_umls
@@ -2271,20 +2299,6 @@ def main():
     analysisConf =  AnalysisConfig()
     print(analysisConf.systems, analysisConf.corpus_config())
    
-    '''
-    NB: For single system evaluation select expression_type = 'single'
-    '''
-#     if (rtype == 1):
-#         print(semtypes, systems)
-#         if filter_semtype:
-#             for semtype in semtypes:
-#                 test = get_valid_systems(systems, semtype)
-#                 print('SYSYEMS FOR SEMTYPE', semtype, 'ARE', test)
-#                 generate_metrics(analysis_type, corpus, filter_semtype, semtype)
-            
-#         else:
-#             generate_metrics(analysis_type, corpus, filter_semtype)
-        
     if (rtype == 2):
         print('run_type:', run_type)
         if filter_semtype:
@@ -2292,11 +2306,7 @@ def main():
             ensemble_control(analysisConf.systems, analysis_type, corpus, run_type, filter_semtype, semtypes)
         else:
             ensemble_control(analysisConf.systems, analysis_type, corpus, run_type, filter_semtype)
-#     elif (rtype == 3):
-#         t = ['concept_jaccard_score_false']
-#         test_systems(analysis_type, analysisConf.systems, corpus)  
-#         test_count(analysis_type, corpus)
-#         test_ensemble(analysis_type, corpus)
+
     elif (rtype == 4):
         
         out = pd.DataFrame()
@@ -2316,49 +2326,12 @@ def main():
         
         file = corpus + '_vote_' + analysis_type + '_' + str(filter_semtype) + '_' + str(timestamp) +'.csv'
         out.to_csv(data_out / file)
-                
-    elif (rtype == 5): # with combo searcher
-        
-        # control filter_semtype in get_sys_data, get_ref_n and generate_metrics. TODO consolidate. 
-        # # run single ad hoc statement
-        statement = 'ctakes'
-
-      
-        def ad_hoc(analysis_type, corpus, statement):
-
-
-            '''
-            sys, d = get_merge_data(statement, analysis_type, corpus, run_type, filter_semtype)
-            sys = sys.rename(index=str, columns={"note_id": "case"})
-            labels = get_labels(analysis_type, corpus, filter_semtype, None) # semtype filter
-            sys = set_labels(analysis_type, sys)
-
-            ref = get_reference_vector(analysis_type, corpus, filter_semtype)
-            sys = vectorized_annotation1s(sys, analysis_type, labels)
-            sys = np.asarray(flatten_list(list(sys)), dtype=np.int32)
-            
-            '''
-            _, d = get_merge_data(statement, analysis_type, corpus, run_type, filter_semtype)
-
-            return d['F1']
-
-        #d = ad_hoc(analysis_type, corpus, statement)a
-
-        result = cs.get_best_ensembles()
-
-        result.get_best(10)
-
-
-        #print('F1:', d['F1'])
         
     elif (rtype == 6): # 5 system merges with evaluation
         
         statement = '(ctakes&biomedicus)'
 
         ad_hoc_sys(statement, analysis_type, corpus)
-        
-        #sys.to_csv('test.csv')
-    
     
     elif (rtype == 7): # complementarity ala http://www.lrec-conf.org/proceedings/lrec2016/pdf/105_Paper.pdf
        
@@ -2371,79 +2344,43 @@ def main():
             
         r = Results()
 
-        import combo_searcher.combo_searcher as cs
-
-               
         def ad_hoc(analysis_type, corpus, systems):
-            
+           
             df = pd.DataFrame()
+            if filter_semtype:
+                for semtype in semtypes:
+                    test = get_valid_systems(systems, semtype)
+                    expressions = get_enesemble_combos(test)
+                    print('SYSTEMS FOR SEMTYPE', semtype, 'ARE', test)
 
-            # get a ensemble combinations
-            def get_result():
-                result = cs.get_best_ensembles(score_method=cs.length_score,
-                                   names=['biomedicus', 'clamp', 'ctakes', 'metamap', 'quick_umls'],
-                                   operators=['&', '|'],
-                                   order=None,
-                                   minimum_increase=0)
+                    for c in expressions:
 
-                #print(result.print_all_no_score())
-                return result.print_all_no_score()
+                        print('complementarity between:', c)
+                        
+                        r.nameA = c[0]
+                        r.nameB = c[1]
 
+                        r.sysA = ad_hoc_sys(c[0], analysis_type, corpus, False, semtype) # c[0]
+                        r.sysB = ad_hoc_sys(c[1], analysis_type, corpus, False, semtype) # c[1]
 
-            results = get_result()
-
-            # tetrun True if number of operators found in expression
-            def n_operators(x, y, n, m, o):
-
-                s1 = sum([x.count(o[0]), x.count(o[1])])
-                s2 = sum([y.count(o[0]), y.count(o[1])])
-                if s1 == n and s2 == m:
-                  return True
-                else:
-                  return False
-            
-            # return length of overlap
-            def overlap(expr1, expr2, operators):
-
-                s1 = expr1
-                s2 = expr2
-
-                for o in operators:
-                    s1 = s1.replace(o, ' ')
-                    s2 = s2.replace(o, ' ')
-
-                s1 = s1.replace('(', '').replace(')','').split()
-                s2 = s2.replace('(', '').replace(')','').split()
-
-
-                return len(set(s1).intersection(set(s2)))
-
-            systems=['biomedicus', 'clamp', 'ctakes', 'metamap', 'quick_umls']
-            operators = ['&', '|']
-
-            # parse out into all paired combos for comparison
-            test = [r for r in results if sum([r.count('|'), r.count('&')]) < len(systems) - 1]
-            out = list(combinations(test, 2))
-            expressions = [o for i in range(len(systems) - 2) for j in range(len(systems) - 2)  if i + j < len(systems) - 1 for o in out if n_operators(o[0], o[1], i, j, operators) and overlap(o[0], o[1], operators) == 0]
-
-
-            for c in expressions:
-                print('complementarity between:', c)
-                    
-                r.nameA = c[0]
-                r.nameB = c[1]
-
-                r.sysA = ad_hoc_sys(c[0], analysis_type, corpus) # c[0]
-                r.sysB = ad_hoc_sys(c[1], analysis_type, corpus) # c[1]
-
-                if filter_semtype:
-                    for semtype in semtypes:
                         out = vectorized_complementarity(r, analysis_type, corpus, c, filter_semtype, semtype)
                         out['semgroup'] = semtype
                         frames = [df, out]
                         df = pd.concat(frames, ignore_index=True, sort=False) 
+
+
+            else:
+                expressions = get_enesemble_combos(systems)
+               
+                for c in expressions:
+                    print('complementarity between:', c)
                         
-                else:
+                    r.nameA = c[0]
+                    r.nameB = c[1]
+
+                    r.sysA = ad_hoc_sys(c[0], analysis_type, corpus) # c[0]
+                    r.sysB = ad_hoc_sys(c[1], analysis_type, corpus) # c[1]
+                    
                     out = vectorized_complementarity(r, analysis_type, corpus, c, filter_semtype)
                     out['semgroup'] = 'All groups'
                     frames = [df, out]
@@ -2455,16 +2392,12 @@ def main():
             file = 'complement_' + corpus + '_filter_semtype_' + str(filter_semtype) + '_' + str(timestamp) +'.csv'
             df.to_csv(data_out / file)
             print(df)
-            
+        
+        
         ad_hoc(analysis_type, corpus, systems)
 
 if __name__ == '__main__':
-    i.reload(nee)
-    #h = hpy()
-    #print(h.heap)
     # %load_ext memory_profiler
     get_ipython().run_line_magic('prun', 'main()')
-    #main()
     print('done!')
-    pass
 
