@@ -55,10 +55,8 @@ import statistics as s
 # need to add semantic type filrering when reading in sys_data
 #corpus = 'ray_test'
 #corpus = 'clinical_trial2'
-#corpus = 'fairview'
-#corpus = 'mipacq'
-#corpus = 'fairview'
-corpus = 'i2b2'
+corpus = 'fairview'
+#corpus = 'i2b2'
 
 # STEP-2: CHOOSE YOUR DATA DIRECTORY; this is where output data will be saved on your machine
 data_directory = '/Users/gms/development/nlp/nlpie/data/ensembling-u01/output/' 
@@ -103,7 +101,7 @@ engine_request = str(database_type)+'://'+database_username+':'+database_passwor
 engine = create_engine(engine_request, pool_pre_ping=True, pool_size=20, max_overflow=30)
 
 # STEP-(8A): FILTER BY SEMTYPE
-filter_semtype = True #False
+filter_semtype = True
 
 # STEP-(8B): IF STEP-(8A) == True -> GET REFERENCE SEMTYPES
 
@@ -190,9 +188,6 @@ class AnalysisConfig():
 analysisConf =  AnalysisConfig()
 
 
-# In[4]:
-
-
 class SemanticTypes(object):
     '''
     Filter semantic types based on: https://metamap.nlm.nih.gov/SemanticTypesAndGroups.shtml
@@ -264,9 +259,6 @@ class SemanticTypes(object):
 #print(SemanticTypes(['Anatomy'], 'mipacq').get_system_type('ctakes'))
 
 
-# In[5]:
-
-
 #semtypes = ['test,treatment']
 #semtypes = 'drug,drug::drug_name,drug::drug_dose,dietary_supplement::dietary_supplement_name,dietary_supplement::dietary_supplement_dose'
 #semtypes =  'demographics::age,demographics::sex,demographics::race_ethnicity,demographics::bmi,demographics::weight'
@@ -283,20 +275,6 @@ def system_semtype_check(sys, semtype, corpus):
 
 #print(system_semtype_check(sys, semtypes, corpus))
 
-
-# In[6]:
-
-
-#%reload_ext Cython
-
-
-# In[7]:
-
-
-#%%cython
-
-#import numpy as np # access to Numpy from Python layer
-#import math
 
 class Metrics(object):
     """
@@ -955,9 +933,6 @@ def cm_dict(ref_only: int, system_only: int, ref_system_match: int, system_n: in
     return d
 
 
-# In[13]:
-
-
 @ft.lru_cache(maxsize=None)
 def get_metric_data(analysis_type: str, corpus: str):
    
@@ -978,13 +953,6 @@ def get_metric_data(analysis_type: str, corpus: str):
     return ref_ann, sys_ann
 
 
-# In[ ]:
-
-#%%cython
-
-import pandas as pd
-from scipy import stats
-from scipy.stats.mstats import gmean
 
 def geometric_mean(metrics):
     """
@@ -1003,9 +971,6 @@ def geometric_mean(metrics):
     metrics['Gmean'] = gmean(metrics.iloc[:,-3:],axis=1)
 
     return metrics  
-
-
-# In[ ]:
 
 
 # confidence intervals
@@ -1119,8 +1084,6 @@ def generate_metrics(analysis_type: str, corpus: str, filter_semtype, semtype = 
         print("total elapsed time:", elapsed) 
 
 
-# In[ ]:
-
 
 #@ft.lru_cache(maxsize=None)
 def get_sys_data(system: str, analysis_type: str, corpus: str, filter_semtype, semtype = None) -> pd.DataFrame:
@@ -1132,7 +1095,7 @@ def get_sys_data(system: str, analysis_type: str, corpus: str, filter_semtype, s
     
     if filter_semtype:
         st = SemanticTypes([semtype], corpus).get_system_type(system)
-        print(system, 'st', st)
+        print(system, ' ST:', st)
     
     if corpus == 'casi':
         cols_to_keep = ['case', 'overlap'] 
@@ -1173,8 +1136,6 @@ def get_sys_data(system: str, analysis_type: str, corpus: str, filter_semtype, s
         return out.drop_duplicates(subset=cols_to_keep)
 
 #GENERATE merges
-# In[ ]:
-
 
 # disambiguate multiple labeled CUIS on span for union 
 def union_vote(df):
@@ -1223,11 +1184,10 @@ def union_vote(df):
     return out  
 
 
-# In[ ]:
-
 
 #@ft.lru_cache(maxsize=None)
-def process_sentence(pt, sentence, analysis_type, corpus, filter_semtype, semtype = None):
+def process_sentence(pt, sentence, analysis_type, corpus, filter_semtype, semtype):
+
     """
     Recursively evaluate parse tree, 
     with check for existence before build
@@ -1277,6 +1237,7 @@ def process_sentence(pt, sentence, analysis_type, corpus, filter_semtype, semtyp
                     # get system as leaf node
                     if filter_semtype:
                         right_sys = get_sys_data(rightC.get(), analysis_type, corpus, filter_semtype, semtype)
+
                     else:
                         right_sys = get_sys_data(rightC.get(), analysis_type, corpus, filter_semtype)
                     
@@ -1360,8 +1321,6 @@ def process_sentence(pt, sentence, analysis_type, corpus, filter_semtype, semtyp
         
     return r
 
-
-# In[ ]:
 
 
 class Results(object):
@@ -1511,8 +1470,8 @@ def get_ref_ann(analysis_type, corpus, filter_semtype, semtype = None):
 
 @ft.lru_cache(maxsize=None)
 def get_sys_ann(analysis_type, r):
-    sys = r.system_merges   
-    
+    sys = r.system_merges
+
     sys = sys.rename(index=str, columns={"note_id": "case", "cui": "value"})
     
     sys = set_labels(analysis_type, sys)
@@ -1671,8 +1630,8 @@ def run_ensemble(systems, analysis_type, corpus, filter_semtype, expression_type
     # pass single system to evaluate
     #if expression_type == 'single':
 
-    if (systems) == 1 or ('|' not in expression and '&' not in expression):
-
+    if len(systems) == 1: 
+        
         for system in systems:
             if filter_semtype:
                 d = get_metrics(expression, analysis_type, corpus, run_type, filter_semtype, semtype)
@@ -1822,7 +1781,7 @@ def ensemble_control(systems, analysis_type, corpus, run_type, filter_semtype, e
             if (expression_type == 'nested_with_singleton' and len(test) == 5) or expression_type in ['nested', 'paired', 'single']:
                 generate_ensemble_metrics(metrics, analysis_type, corpus, ensemble_type, filter_semtype, semtype)
     else:
-        metrics = run_ensemble(systems, analysis_type, corpus, filter_semtype, expression_typei, expression)
+        metrics = run_ensemble(systems, analysis_type, corpus, filter_semtype, expression_type, expression)
         generate_ensemble_metrics(metrics, analysis_type, corpus, ensemble_type, filter_semtype)
 
 
@@ -1838,7 +1797,8 @@ def get_merge_data(boolean_expression: str, analysis_type: str, corpus: str, run
         ann = get_ref_ann(analysis_type, corpus, filter_semtype, semtype)
     else: 
         ann = get_ref_ann(analysis_type, corpus, filter_semtype)
-    
+
+
     sentence = Sentence(boolean_expression)   
 
     pt = make_parse_tree(sentence.sentence)
@@ -2214,11 +2174,11 @@ def majority_exact_vote_out(sys, filter_semtype, semtype = None):
         print(cm_dict(c.ref_only, c.system_only, c.ref_system_match, c.system_n, c.ref_n))
         return cm_dict(c.ref_only, c.system_only, c.ref_system_match, c.system_n, c.ref_n)
 
-def get_enesemble_combos(systems=['biomedicus', 'clamp', 'ctakes', 'metamap', 'quick_umls']): 
+def get_ensemble_combos(systems=['biomedicus', 'clamp', 'ctakes', 'metamap', 'quick_umls']): 
         # get a ensemble combinations
         def get_result():
             result = cs.get_best_ensembles(score_method=cs.length_score,
-                               names=['biomedicus', 'clamp', 'ctakes', 'metamap', 'quick_umls'],
+                               names=systems,
                                operators=['&', '|'],
                                order=None,
                                minimum_increase=0)
@@ -2267,9 +2227,9 @@ def get_enesemble_combos(systems=['biomedicus', 'clamp', 'ctakes', 'metamap', 'q
         return expressions
 
 # use with combo_searcher
-def ad_hoc_measure(statement, analysis_type, corpus, measure, metrics = True, semtype = None):
+def ad_hoc_measure(statement, analysis_type, corpus, measure, filter_semtype, semtype = None):
 
-    d = get_merge_data(statement, analysis_type, corpus, run_type, filter_semtype, metrics = True, semtype = None)
+    d = get_merge_data(statement, analysis_type, corpus, run_type, filter_semtype, True, semtype)
 
     if measure in ['F1', 'precision', 'recall']:
         return d[measure]
@@ -2350,11 +2310,10 @@ def main():
             if filter_semtype:
                 for semtype in semtypes:
                     test = get_valid_systems(systems, semtype)
-                    expressions = get_enesemble_combos(test)
+                    expressions = get_ensemble_combos(test)
                     print('SYSTEMS FOR SEMTYPE', semtype, 'ARE', test)
 
                     for c in expressions:
-
                         print('complementarity between:', c)
                         
                         r.nameA = c[0]
@@ -2370,7 +2329,7 @@ def main():
 
 
             else:
-                expressions = get_enesemble_combos(systems)
+                expressions = get_ensemble_combos(systems)
                
                 for c in expressions:
                     print('complementarity between:', c)
