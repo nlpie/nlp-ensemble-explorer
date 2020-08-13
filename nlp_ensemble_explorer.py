@@ -15,9 +15,8 @@
   See the License for the specific language governing permissions and
   limitations under the License.
 '''
-# In[ ]:
 
-#from guppy import hpy
+import combo_searcher_new.combo_searcher as csn
 import combo_searcher.combo_searcher as cs
 import importlib as i
 import gevent
@@ -44,7 +43,6 @@ from scipy import sparse
 import statistics as s
 # The cell below contains the configurable parameters to ensure that our ensemble explorer runs properaly on your machine. 
 # Please read carfully through steps (1-11) before running the rest of the cells.
-# In[ ]:
 
 
 # STEP-1: CHOOSE YOUR CORPUS
@@ -57,6 +55,7 @@ import statistics as s
 #corpus = 'clinical_trial2'
 corpus = 'fairview'
 #corpus = 'i2b2'
+#corpus = 'mipacq'
 
 # STEP-2: CHOOSE YOUR DATA DIRECTORY; this is where output data will be saved on your machine
 data_directory = '/Users/gms/development/nlp/nlpie/data/ensembling-u01/output/' 
@@ -101,7 +100,7 @@ engine_request = str(database_type)+'://'+database_username+':'+database_passwor
 engine = create_engine(engine_request, pool_pre_ping=True, pool_size=20, max_overflow=30)
 
 # STEP-(8A): FILTER BY SEMTYPE
-filter_semtype = True
+filter_semtype = False
 
 # STEP-(8B): IF STEP-(8A) == True -> GET REFERENCE SEMTYPES
 
@@ -133,11 +132,7 @@ src_table = 'sofa'
 # STEP-10: Specify match type from {'exact', 'overlap'}
 run_type = 'overlap'
 
-# STEP-11: Specify expression type for run (TODO: run all at once; make less kludgey); option single obviates use of rtype = 1
-expression_type = 'nested' #'nested_with_singleton' # type of merge expression: nested ((A&B)|C), paired ((A&B)|(C&D)), nested_with_singleton ((A&B)|((C&D)|E)) 
-# -> NB: len(systems) for pair must be >= 4, and for nested_with_singleton == 5; single-> skip merges
-
-# STEP-12: Specify type of ensemble: merge or vote: used for file naming -> TODO: remove!
+# STEP-11: Specify type of ensemble: merge or vote: used for file naming -> TODO: remove!
 ensemble_type = 'merge'
 
 #****** TODO 
@@ -145,7 +140,7 @@ ensemble_type = 'merge'
 -> add majority vote to union for analysis_type = 'full', 'cui': done!
 -> case for multiple labels on same/overlapping span/same system; disambiguate (order by score if exists and select random for ties): done!
 -> port to command line: in process... 
--> rtype 1 -> expression_type = 'single': done! -> use count of operators
+-> rtype 1 -> dump expression_type = 'single': done! -> use count of operators; integrate combo_searcher to generate expressiopn
 -> refactor vectorized_cooccurences ->  vectorized_cooccurences_test and vectorized_annotations
 ----------------------->
 -> swap out confused with vectorized_cooccurences
@@ -164,7 +159,6 @@ ensemble_type = 'merge'
 -> add non-UIMA solution for get_docs
 -> confusion matrix for multiclass 
 '''
-# In[3]:
 
 
 # config class for analysis
@@ -413,7 +407,6 @@ def reduce_mem_usage(props):
     print("Memory usage is: ",mem_usg," MB")
     print("This is ",100*mem_usg/start_mem_usg,"% of the initial size")
     return props, NAlist
-# In[8]:
 
 
 def df_to_set(df, analysis_type = 'entity', df_type = 'sys', corpus = None):
@@ -431,9 +424,6 @@ def df_to_set(df, analysis_type = 'entity', df_type = 'sys', corpus = None):
         arg = df.begin, df.end, df.value, df.case
     
     return set(list(zip(*arg)))
-
-
-# In[9]:
 
 
 # use for exact matches
@@ -517,8 +507,6 @@ def get_cooccurences(ref, sys, analysis_type: str, corpus: str):
     return c 
 
 #Relaxed matches using vectorization:
-# In[10]:
-
 
 # https://stackoverflow.com/questions/49210801/python3-pass-lists-to-function-with-functools-lru-cache
 def listToTuple(function):
@@ -529,8 +517,6 @@ def listToTuple(function):
         return result
     return wrapper
 
-
-# In[11]:
 
 
 def flatten_list(l):
@@ -841,9 +827,11 @@ def vectorized_complementarity(r: object, analysis_type: str, corpus: str, c: tu
     b_over_a, a_over_b, mean_comp = complementarity_measures(FN, FP, aFN, aFP, bFN, bFP)
     
     b_over_a['system'] = str((r.nameB, r.nameA))
+
     a_over_b['system'] = str((r.nameA, r.nameB))
+
     mean_comp['system'] = 'mean_comp(' + r.nameA + ',' + r.nameB + ')'
-    
+
     frames = [out, pd.DataFrame(b_over_a, index=[0])]
     out = pd.concat(frames, ignore_index=True, sort=False) 
     
@@ -894,9 +882,6 @@ def complementarity_measures(FN, FP, aFN, aFP, bFN, bFP):
     mean_complementarity = {'test': 'mean(COMP(B, A),COMP(A, B))', 'max_prop_error_reduction': meanComp, 'mean p': meanP, 'mean r': meanR, 'mean F1-score': meanF1}
 
     return b_over_a, a_over_b, mean_complementarity
-
-
-# In[12]:
 
 
 @ft.lru_cache(maxsize=None)
@@ -1009,9 +994,6 @@ def f1_score_confidence_interval(r, p, dr, dp):
 	return f1_score, interval_range, f1_score - interval_range, f1_score + interval_range
 
 
-# In[ ]:
-
-
 def generate_metrics(analysis_type: str, corpus: str, filter_semtype, semtype = None):
     start = time.time()
 
@@ -1084,7 +1066,6 @@ def generate_metrics(analysis_type: str, corpus: str, filter_semtype, semtype = 
         print("total elapsed time:", elapsed) 
 
 
-
 #@ft.lru_cache(maxsize=None)
 def get_sys_data(system: str, analysis_type: str, corpus: str, filter_semtype, semtype = None) -> pd.DataFrame:
    
@@ -1138,7 +1119,7 @@ def get_sys_data(system: str, analysis_type: str, corpus: str, filter_semtype, s
 #GENERATE merges
 
 # disambiguate multiple labeled CUIS on span for union 
-def union_vote(df):
+def disambiguate(df):
     df['length'] = (df.end - df.begin).abs()
     
     cases = set(df['note_id'].tolist())
@@ -1165,11 +1146,11 @@ def union_vote(df):
                 if i%5000 == 0:
                     print('iteration:', i)
 
-                # if gretaer scxore or longer span exists, use as tie-breaker
-                if maxScore > minScore:
-                    fx = fx[fx['score'] == maxScore]
-                elif maxLength > minLength:
+                # if longer span exists, use as tie-breaker else use score
+                if maxLength > minLength:
                     fx = fx[fx['length'] == fx['length'].max()]
+                elif maxScore > minScore:
+                    fx = fx[fx['score'] == maxScore]
 
             i += 1
             data.append(fx)
@@ -1183,10 +1164,39 @@ def union_vote(df):
     
     return out  
 
+# majority vote -> plurality for enttity only, witth tties winning
+def vote(df, systems):
+    
+    cases = set(df['note_id'].tolist())
+    
+    for case in cases:
+        i = 0
+        data = []
+        out = pd.DataFrame()
+        
+        test = df[df['note_id']==case].copy()
+        
+        for row in test.itertuples():
 
+            fx = test[(test.begin == row.begin) & (test.end == row.end)].copy()
+
+            n = int(len(systems)/2)
+
+            fx = fx[fx.system.isin(systems)]
+           
+            fx = fx.drop_duplicates()
+ 
+            if (len(fx.systems.tolist())>=n):
+                data.append(fx)
+             
+        out = pd.concat(data, axis=0)
+   
+    out = out.drop_duplicates(['begin', 'end', 'note_id'])
+    
+    return out  
 
 #@ft.lru_cache(maxsize=None)
-def process_sentence(pt, sentence, analysis_type, corpus, filter_semtype, semtype):
+def process_sentence(pt, sentence, analysis_type, corpus, filter_semtype, semtype = None):
 
     """
     Recursively evaluate parse tree, 
@@ -1258,13 +1268,10 @@ def process_sentence(pt, sentence, analysis_type, corpus, filter_semtype, semtyp
                     elif isinstance(leftC.get(), pd.DataFrame) and isinstance(rightC.get(), pd.DataFrame):
                         frames = [l_sys, r_sys]
                     
-                    # add in vote
-                        
                     df = pd.concat(frames,  ignore_index=True)
-                    #df = df[cols_to_keep].drop_duplicates(subset=cols_to_keep)
                     
 #                     if analysis_type == 'full':
-#                         df = union_vote(df)
+#                         df = disambiguate(df)
 
                 if fn == op.and_:
                     
@@ -1599,20 +1606,6 @@ def get_metrics(boolean_expression: str, analysis_type: str, corpus: str, run_ty
         return d
 
 
-# generate all combinations of given list of annotators:
-def partly_unordered_permutations(lst, k):
-    elems = set(lst)
-    for c in combinations(lst, k):
-        for d in permutations(elems - set(c)):
-            yield c + d
-            
-def expressions(l, n):
-    for (operations, *operands), operators in product(
-            combinations(l, n), product(('&', '|'), repeat=n-1)):
-        for operation in zip(operators, operands):
-            operations = [operations, *operation]
-        yield operations
-
 # get list of systems with a semantic type in grouping
 def get_valid_systems(systems, semtype):
     test = []
@@ -1623,8 +1616,9 @@ def get_valid_systems(systems, semtype):
 
     return test
 
+
 # permute system combinations and evaluate system merges for performance
-def run_ensemble(systems, analysis_type, corpus, filter_semtype, expression_type, expression = None, semtype = None):
+def run_ensemble(systems, analysis_type, corpus, filter_semtype, semtype = None):
     metrics = pd.DataFrame()
     
     # pass single system to evaluate
@@ -1634,110 +1628,29 @@ def run_ensemble(systems, analysis_type, corpus, filter_semtype, expression_type
         
         for system in systems:
             if filter_semtype:
-                d = get_metrics(expression, analysis_type, corpus, run_type, filter_semtype, semtype)
+                d = get_metrics(system, analysis_type, corpus, run_type, filter_semtype, semtype)
             else:
-                d = get_metrics(expression, analysis_type, corpus, run_type, filter_semtype)
+                d = get_metrics(system, analysis_type, corpus, run_type, filter_semtype)
             d['merge'] = expression
             d['n_terms'] = 1
 
             frames = [metrics, pd.DataFrame(d, index=[0])]
-            metrics = pd.concat(frames, ignore_index=True, sort=False) 
-    
-    elif expression_type == 'nested':
-        for l in partly_unordered_permutations(systems, 2):
-            print('processing merge combo:', l)
-            for i in range(1, len(l)+1):
-                test = list(expressions(l, i))
-                for t in test:
-                    if i > 1:
-                        # format Boolean sentence for parse tree 
-                        t = '(' + " ".join(str(x) for x in t).replace('[','(').replace(']',')').replace("'","").replace(",","").replace(" ","") + ')'
+            metrics = pd.concat(frames, ignore_index=True, sort=False)
 
-                    if filter_semtype:
-                        d = get_metrics(t, analysis_type, corpus, run_type, filter_semtype, semtype)
-                    else:
-                        d = get_metrics(t, analysis_type, corpus, run_type, filter_semtype)
-
-                    d['merge'] = t
-                    d['n_terms'] = i
-
-                    frames = [metrics, pd.DataFrame(d, index=[0])]
-                    metrics = pd.concat(frames, ignore_index=True, sort=False) 
-    
-    # kludges to fill in missing forms
-    elif expression_type == 'nested_with_singleton' and len(systems) == 5:
-        # form (((a&b)|c)&(d|e))
-        
-        nested = list(expressions(systems, 3))
-        test = list(expressions(systems, 2))
-        to_do_terms = []
-    
-        for n in nested:
-            # format Boolean sentence for parse tree 
-            n = '(' + " ".join(str(x) for x in n).replace('[','(').replace(']',')').replace("'","").replace(",","").replace(" ","") + ')'
-
-            for t in test:
-                t = '(' + " ".join(str(x) for x in t).replace('[','(').replace(']',')').replace("'","").replace(",","").replace(" ","") + ')'
-
-                new_and = '(' + n +'&'+ t + ')'
-                new_or = '(' + n +'|'+ t + ')'
-
-                if new_and.count('biomedicus') != 2 and new_and.count('clamp') != 2 and new_and.count('ctakes') != 2 and new_and.count('metamap') != 2 and new_and.count('quick_umls') != 2:
-
-                    if new_and.count('&') != 4 and new_or.count('|') != 4:
-                        #print(new_and)
-                        #print(new_or)
-                        to_do_terms.append(new_or)
-                        to_do_terms.append(new_and)
-        
-        print('nested_with_singleton', len(to_do_terms))
-        for term in to_do_terms:
+    else:
+        expressions = get_ensemble_combos(systems)
+               
+        for e in expressions:
+            print(e)
             if filter_semtype:
-                d = get_metrics(term, analysis_type, corpus, run_type, filter_semtype, semtype)
+                d = get_metrics(e, analysis_type, corpus, run_type, filter_semtype, semtype)
             else:
-                d = get_metrics(term, analysis_type, corpus, run_type, filter_semtype)
-                
-            n = term.count('&')
-            m = term.count('|')
-            d['merge'] = term
-            d['n_terms'] = m + n + 1
+                d = get_metrics(e, analysis_type, corpus, run_type, filter_semtype)
 
-            frames = [metrics, pd.DataFrame(d, index=[0])]
-            metrics = pd.concat(frames, ignore_index=True, sort=False) 
-                        
-    elif expression_type == 'paired':
-        m = list(expressions(systems, 2))
-        test = list(expressions(m, 2))
-
-        to_do_terms = []
-        for t in test:
-            # format Boolean sentence for parse tree 
-            t = '(' + " ".join(str(x) for x in t).replace('[','(').replace(']',')').replace("'","").replace(",","").replace(" ","") + ')'
-            if t.count('biomedicus') != 2 and t.count('clamp') != 2 and t.count('ctakes') != 2 and t.count('metamap') != 2 and t.count('quick_umls') != 2:
-                if t.count('&') != 3 and t.count('|') != 3:
-                    to_do_terms.append(t)
-                    if len(systems) == 5:
-                        for i in systems:
-                            if i not in t:
-                                #print('('+t+'&'+i+')')
-                                #print('('+t+'|'+i+')')
-                                new_and = '('+t+'&'+i+')'
-                                new_or = '('+t+'|'+i+')'
-                                to_do_terms.append(new_and)
-                                to_do_terms.append(new_or)
-                            
-        print('paired', len(to_do_terms))
-        for term in to_do_terms:
-            if filter_semtype:
-                d = get_metrics(term, analysis_type, corpus, run_type, filter_semtype, semtype)
-            else:
-                d = get_metrics(term, analysis_type, corpus, run_type, filter_semtype)
-                
-            n = term.count('&')
-            m = term.count('|')
-            d['merge'] = term
-            d['n_terms'] = m + n + 1
-
+            d['merge'] = e
+            n = e.count('&') + e.count('|') + 1 
+            d['n_terms'] = n
+            
             frames = [metrics, pd.DataFrame(d, index=[0])]
             metrics = pd.concat(frames, ignore_index=True, sort=False) 
         
@@ -1772,16 +1685,15 @@ def generate_ensemble_metrics(metrics, analysis_type, corpus, ensemble_type, fil
     
     
 # control ensemble run
-def ensemble_control(systems, analysis_type, corpus, run_type, filter_semtype, expression = None, semtypes = None):
+def ensemble_control(systems, analysis_type, corpus, run_type, filter_semtype, semtypes=None):
     if filter_semtype:
         for semtype in semtypes:
             test = get_valid_systems(systems, semtype)
             print('SYSTEMS FOR SEMTYPE', semtype, 'ARE', test)
-            metrics = run_ensemble(test, analysis_type, corpus, filter_semtype, expression_type, semtype)
-            if (expression_type == 'nested_with_singleton' and len(test) == 5) or expression_type in ['nested', 'paired', 'single']:
-                generate_ensemble_metrics(metrics, analysis_type, corpus, ensemble_type, filter_semtype, semtype)
+            metrics = run_ensemble(test, analysis_type, corpus, filter_semtype, semtype)
+            generate_ensemble_metrics(metrics, analysis_type, corpus, ensemble_type, filter_semtype, semtype)
     else:
-        metrics = run_ensemble(systems, analysis_type, corpus, filter_semtype, expression_type, expression)
+        metrics = run_ensemble(systems, analysis_type, corpus, filter_semtype, expression)
         generate_ensemble_metrics(metrics, analysis_type, corpus, ensemble_type, filter_semtype)
 
 
@@ -1872,7 +1784,7 @@ def get_reference_vector(analysis_type, corpus, filter_semtype, semtype = None):
 
     return ref
 
-def majority_overlap_sys(systems, analysis_type, corpus, filter_semtype, semtype = None):
+def get_majority_sys(systems, analysis_type, corpus, filter_semtype, semtype = None):
     
     d = {}
     sys_test = []
@@ -1883,7 +1795,9 @@ def majority_overlap_sys(systems, analysis_type, corpus, filter_semtype, semtype
         cols_to_keep = ['case', 'label']
     elif 'full' in analysis_type: 
         cols_to_keep = ['begin', 'end', 'case', 'label']
-   
+
+    out = pd.DataFrame()
+  
     for system in systems:
         print(system)
         sys_ann = get_sys_data(system, analysis_type, corpus, filter_semtype, semtype)
@@ -1892,71 +1806,79 @@ def majority_overlap_sys(systems, analysis_type, corpus, filter_semtype, semtype
         
         df = df.rename(index=str, columns={"note_id": "case", "cui": "value"})
         df = set_labels(analysis_type, df)
-        labels = get_labels(analysis_type, corpus, filter_semtype, semtype)
-        
-        sys = df[df['system']==system][cols_to_keep].copy()
-        results.df = sys
-        results.labels = labels
-        test = vectorized_annotations(results, analysis_type)
-      
-        if analysis_type != 'cui':
-            vector = np.asarray(flatten_list(test), dtype=np.int32) 
-        else:
-            vector = test
-        
-        d[system] = vector
-        sys_test.append(d[system])
-        
-    
-    n = int(len(systems) / 2)
-    if analysis_type != 'full':
-        output = sum(np.array(sys_test))
-        if ((len(systems) % 2) != 0):
-            vote = np.where(output > n, 1, 0)
-        else:
-            vote = np.where(output > n, 1, 
-             (np.where(output == n, random.randint(0, 1), 0)))
-        
-    elif analysis_type == 'full':
-#         vote = mode(np.stack(sys_test), axis=0)
-#         vote = vote.mode[0]
+     
+        frames = [out, df]
+        out = pd.concat(frames)
+        out = out[cols_to_keep]
 
-        vote = list()
-        X = np.vstack(sys_test)
-#         for i in range(X.shape[1]):
-#             unique, counts = np.unique(X[:, i], return_counts=True)
-#             print(systems, unique, counts)
-            
-#             idx = np.argmax(counts)
-#             if counts[idx] > n:
-#                 vote.append(unique[idx])
-#             else:
-#                 vote.append(random.choice(unique))
-        
-        # 
-        for i in range(X.shape[1]):
-            unique, counts = np.unique(X[:, i], return_counts=True)
-            idx = np.argmax(counts)
-            if counts[idx] > n or len(counts) == 1:
-                vote.append(unique[idx])
-            elif len(counts) == X.shape[0]:
-                vote.append(random.choice(unique))
-            else:
-                # take highest, non-majority
-                m = 1
-                val = 0
-                for j in range(len(list(counts))):
-                    if counts[j] > m:
-                        m = counts[j]
-                        val = unique[j]
+    return vote(out, systems) 
 
-                if j == len(list(counts)) - 1:
-                    if m == 1:
-                        vote.append(random.choice(unique))
-                    else:
-                        vote.append(val)
-        
-    return vote
+
+#        labels = get_labels(analysis_type, corpus, filter_semtype, semtype)
+#        
+#        sys = df[df['system']==system][cols_to_keep].copy()
+#        results.df = sys
+#        results.labels = labels
+#        test = vectorized_annotations(results, analysis_type)
+#      
+#        if analysis_type != 'cui':
+#            vector = np.asarray(flatten_list(test), dtype=np.int32) 
+#        else:
+#            vector = test
+#        
+#        d[system] = vector
+#        sys_test.append(d[system])
+#        
+#    
+#    n = int(len(systems) / 2)
+#    if analysis_type != 'full':
+#        output = sum(np.array(sys_test))
+#        if ((len(systems) % 2) != 0):
+#            vote = np.where(output > n, 1, 0)
+#        else:
+#            vote = np.where(output > n, 1, 
+#             (np.where(output == n, random.randint(0, 1), 0)))
+#        
+#    elif analysis_type == 'full':
+##         vote = mode(np.stack(sys_test), axis=0)
+##         vote = vote.mode[0]
+#
+#        vote = list()
+#        X = np.vstack(sys_test)
+##         for i in range(X.shape[1]):
+##             unique, counts = np.unique(X[:, i], return_counts=True)
+##             print(systems, unique, counts)
+#            
+##             idx = np.argmax(counts)
+##             if counts[idx] > n:
+##                 vote.append(unique[idx])
+##             else:
+##                 vote.append(random.choice(unique))
+#        
+#        # 
+#        for i in range(X.shape[1]):
+#            unique, counts = np.unique(X[:, i], return_counts=True)
+#            idx = np.argmax(counts)
+#            if counts[idx] > n or len(counts) == 1:
+#                vote.append(unique[idx])
+#            elif len(counts) == X.shape[0]:
+#                vote.append(random.choice(unique))
+#            else:
+#                # take highest, non-majority
+#                m = 1
+#                val = 0
+#                for j in range(len(list(counts))):
+#                    if counts[j] > m:
+#                        m = counts[j]
+#                        val = unique[j]
+#
+#                if j == len(list(counts)) - 1:
+#                    if m == 1:
+#                        vote.append(random.choice(unique))
+#                    else:
+#                        vote.append(val)
+#        
+#    return vote
 
 
 # @ft.lru_cache(maxsize=None)
@@ -2049,14 +1971,14 @@ def majority_vote(systems, analysis_type, corpus, run_type, filter_semtype, semt
                 vote = majority_overlap_sys(test, analysis_type, corpus, filter_semtype, semtype)
                 out = majority_overlap_vote_out(ref, vote, corpus)
                 #generate_ensemble_metrics(metrics, analysis_type, corpus, ensemble_type, filter_semtype, semtype)
-            elif run_type == 'exact':
-                sys = majority_exact_sys(test, analysis_type, corpus, filter_semtype, semtype)
-                d = majority_exact_vote_out(sys, filter_semtype, semtype)
-                metrics = pd.DataFrame(d, index=[0])
-            elif run_type == 'cui':
-                sys = majority_cui_sys(test, analysis_type, corpus, filter_semtype, semtype)
-                d = majority_cui_vote_out(sys, filter_semtype, semtype)
-                metrics = pd.DataFrame(d, index=[0])
+          #  elif run_type == 'exact':
+          #      sys = majority_exact_sys(test, analysis_type, corpus, filter_semtype, semtype)
+          #      d = majority_exact_vote_out(sys, filter_semtype, semtype)
+          #      metrics = pd.DataFrame(d, index=[0])
+          #  elif run_type == 'cui':
+          #      sys = majority_cui_sys(test, analysis_type, corpus, filter_semtype, semtype)
+          #      d = majority_cui_vote_out(sys, filter_semtype, semtype)
+          #      metrics = pd.DataFrame(d, index=[0])
             
             out['semgroup'] = semtype
             out['systems'] = ','.join(test)
@@ -2067,18 +1989,25 @@ def majority_vote(systems, analysis_type, corpus, run_type, filter_semtype, semt
     else:
         if run_type == 'overlap':
             ref = get_reference_vector(analysis_type, corpus, filter_semtype)
-            vote = majority_overlap_sys(systems, analysis_type, corpus, filter_semtype)
-            metrics = majority_overlap_vote_out(ref, vote, corpus)
             
-        elif run_type == 'exact':
-            sys = majority_exact_sys(systems, analysis_type, corpus, filter_semtype)
-            d = majority_exact_vote_out(sys, filter_semtype)
-            metrics = pd.DataFrame(d, index=[0])
+            vote = get_majority_sys(systems, analysis_type, corpus, filter_semtype)
+            labels = get_labels(analysis_type, corpus, filter_semtype, semtype)
+        
+            results.df = votee
+            results.labels = labels
+            test = vectorized_annotations(results, analysis_type)
+
+            metrics = majority_overlap_vote_out(ref, test, corpus)
             
-        elif run_type == 'cui':
-            sys = majority_cui_sys(systems, analysis_type, corpus, filter_semtype)
-            d = majority_cui_vote_out(sys, filter_semtype)
-            metrics = pd.DataFrame(d, index=[0])
+        #elif run_type == 'exact':
+        #    sys = majority_exact_sys(systems, analysis_type, corpus, filter_semtype)
+        #    d = majority_exact_vote_out(sys, filter_semtype)
+        #    metrics = pd.DataFrame(d, index=[0])
+        #    
+        #elif run_type == 'cui':
+        #    sys = majority_cui_sys(systems, analysis_type, corpus, filter_semtype)
+        #    d = majority_cui_vote_out(sys, filter_semtype)
+        #    metrics = pd.DataFrame(d, index=[0])
             
         metrics['systems'] = ','.join(systems)
         generate_ensemble_metrics(metrics, analysis_type, corpus, ensemble_type, filter_semtype)
@@ -2086,110 +2015,120 @@ def majority_vote(systems, analysis_type, corpus, run_type, filter_semtype, semt
     print(metrics)
     
     return metrics
-    
-def majority_cui_sys(systems, analysis_type, corpus, filter_semtype, semtype = None):
-   
-    cols_to_keep = ['cui', 'note_id', 'system']
-    
-    df = pd.DataFrame()
-    for system in systems:
-        if filter_semtype:
-            sys = get_sys_data(system, analysis_type, corpus, filter_semtype, semtype)
-        else:
-            sys = get_sys_data(system, analysis_type, corpus, filter_semtype)
-            
-        sys = sys[sys['system'] == system][cols_to_keep].drop_duplicates()
-        
-        frames = [df, sys]
-        df = pd.concat(frames)
-        
-    return df
 
-def majority_cui_vote_out(sys, filter_semtype, semtype = None):
-    
-    sys = sys.astype(str)
-    sys['value_cui'] = list(zip(sys.cui, sys.note_id.astype(str)))
-    sys['count'] = sys.groupby(['value_cui'])['value_cui'].transform('count')
 
-    n = int(len(systems) / 2)
-    if ((len(systems) % 2) != 0):
-        sys = sys[sys['count'] > n]
-    else:
-        # https://stackoverflow.com/questions/23330654/update-a-dataframe-in-pandas-while-iterating-row-by-row
-        for i in sys.index:
-            if sys.at[i, 'count'] == n:
-                sys.at[i, 'count'] = random.choice([1,len(systems)])
-        sys = sys[sys['count'] > n]
+#def majority_cui_sys(systems, analysis_type, corpus, filter_semtype, semtype = None):
+#   
+#    cols_to_keep = ['cui', 'note_id', 'system']
+#    
+#    df = pd.DataFrame()
+#    for system in systems:
+#        if filter_semtype:
+#            sys = get_sys_data(system, analysis_type, corpus, filter_semtype, semtype)
+#        else:
+#            sys = get_sys_data(system, analysis_type, corpus, filter_semtype)
+#            
+#        sys = sys[sys['system'] == system][cols_to_keep].drop_duplicates()
+#        
+#        frames = [df, sys]
+#        df = pd.concat(frames)
+#        
+#    return df
+#
+#def majority_cui_vote_out(sys, filter_semtype, semtype = None):
+#    
+#    sys = sys.astype(str)
+#    sys['value_cui'] = list(zip(sys.cui, sys.note_id.astype(str)))
+#    sys['count'] = sys.groupby(['value_cui'])['value_cui'].transform('count')
+#
+#    n = int(len(systems) / 2)
+#    if ((len(systems) % 2) != 0):
+#        sys = sys[sys['count'] > n]
+#    else:
+#        # https://stackoverflow.com/questions/23330654/update-a-dataframe-in-pandas-while-iterating-row-by-row
+#        for i in sys.index:
+#            if sys.at[i, 'count'] == n:
+#                sys.at[i, 'count'] = random.choice([1,len(systems)])
+#        sys = sys[sys['count'] > n]
+#
+#    sys = sys.drop_duplicates(subset=['value_cui', 'cui', 'note_id'])
+#    ref = get_ref_ann(analysis_type, corpus, filter_semtype, semtype)
+#
+#    c = get_cooccurences(ref, sys, analysis_type, corpus) # get matches, FN, etc.
+#
+#    if c.ref_system_match > 0: # compute confusion matrix metrics and write to dictionary -> df
+#        # get dictionary of confusion matrix metrics
+#        print(cm_dict(c.ref_only, c.system_only, c.ref_system_match, c.system_n, c.ref_n))
+#        return cm_dict(c.ref_only, c.system_only, c.ref_system_match, c.system_n, c.ref_n)
+#    
+#
+#def majority_exact_sys(systems, analysis_type, corpus, filter_semtype, semtype = None):
+#   
+#    cols_to_keep = ['begin', 'end', 'note_id', 'system']
+#    
+#    df = pd.DataFrame()
+#    for system in systems:
+#        if filter_semtype:
+#            sys = get_sys_data(system, analysis_type, corpus, filter_semtype, semtype)
+#        else:
+#            sys = get_sys_data(system, analysis_type, corpus, filter_semtype)
+#            
+#        sys = sys[sys['system'] == system][cols_to_keep].drop_duplicates()
+#        
+#        frames = [df, sys]
+#        df = pd.concat(frames)
+#        
+#    return df
+#        
+#def majority_exact_vote_out(sys, filter_semtype, semtype = None):
+#    sys['span'] = list(zip(sys.begin, sys.end, sys.note_id.astype(str)))
+#    sys['count'] = sys.groupby(['span'])['span'].transform('count')
+#
+#    n = int(len(systems) / 2)
+#    if ((len(systems) % 2) != 0):
+#        sys = sys[sys['count'] > n]
+#    else:
+#        # https://stackoverflow.com/questions/23330654/update-a-dataframe-in-pandas-while-iterating-row-by-row
+#        for i in sys.index:
+#            if sys.at[i, 'count'] == n:
+#                sys.at[i, 'count'] = random.choice([1,len(systems)])
+#        sys = sys[sys['count'] > n]
+#
+#    sys = sys.drop_duplicates(subset=['span', 'begin', 'end', 'note_id'])
+#    ref = get_ref_ann(analysis_type, corpus, filter_semtype, semtype)
+#
+#    c = get_cooccurences(ref, sys, analysis_type, corpus) # get matches, FN, etc.
+#
+#    if c.ref_system_match > 0: # compute confusion matrix metrics and write to dictionary -> df
+#        # get dictionary of confusion matrix metrics
+#        print(cm_dict(c.ref_only, c.system_only, c.ref_system_match, c.system_n, c.ref_n))
+#        return cm_dict(c.ref_only, c.system_only, c.ref_system_match, c.system_n, c.ref_n)
 
-    sys = sys.drop_duplicates(subset=['value_cui', 'cui', 'note_id'])
-    ref = get_ref_ann(analysis_type, corpus, filter_semtype, semtype)
-
-    c = get_cooccurences(ref, sys, analysis_type, corpus) # get matches, FN, etc.
-
-    if c.ref_system_match > 0: # compute confusion matrix metrics and write to dictionary -> df
-        # get dictionary of confusion matrix metrics
-        print(cm_dict(c.ref_only, c.system_only, c.ref_system_match, c.system_n, c.ref_n))
-        return cm_dict(c.ref_only, c.system_only, c.ref_system_match, c.system_n, c.ref_n)
-    
-
-def majority_exact_sys(systems, analysis_type, corpus, filter_semtype, semtype = None):
-   
-    cols_to_keep = ['begin', 'end', 'note_id', 'system']
-    
-    df = pd.DataFrame()
-    for system in systems:
-        if filter_semtype:
-            sys = get_sys_data(system, analysis_type, corpus, filter_semtype, semtype)
-        else:
-            sys = get_sys_data(system, analysis_type, corpus, filter_semtype)
-            
-        sys = sys[sys['system'] == system][cols_to_keep].drop_duplicates()
-        
-        frames = [df, sys]
-        df = pd.concat(frames)
-        
-    return df
-        
-def majority_exact_vote_out(sys, filter_semtype, semtype = None):
-    sys['span'] = list(zip(sys.begin, sys.end, sys.note_id.astype(str)))
-    sys['count'] = sys.groupby(['span'])['span'].transform('count')
-
-    n = int(len(systems) / 2)
-    if ((len(systems) % 2) != 0):
-        sys = sys[sys['count'] > n]
-    else:
-        # https://stackoverflow.com/questions/23330654/update-a-dataframe-in-pandas-while-iterating-row-by-row
-        for i in sys.index:
-            if sys.at[i, 'count'] == n:
-                sys.at[i, 'count'] = random.choice([1,len(systems)])
-        sys = sys[sys['count'] > n]
-
-    sys = sys.drop_duplicates(subset=['span', 'begin', 'end', 'note_id'])
-    ref = get_ref_ann(analysis_type, corpus, filter_semtype, semtype)
-
-    c = get_cooccurences(ref, sys, analysis_type, corpus) # get matches, FN, etc.
-
-    if c.ref_system_match > 0: # compute confusion matrix metrics and write to dictionary -> df
-        # get dictionary of confusion matrix metrics
-        print(cm_dict(c.ref_only, c.system_only, c.ref_system_match, c.system_n, c.ref_n))
-        return cm_dict(c.ref_only, c.system_only, c.ref_system_match, c.system_n, c.ref_n)
 
 def get_ensemble_combos(systems=['biomedicus', 'clamp', 'ctakes', 'metamap', 'quick_umls']): 
         # get a ensemble combinations
+
+        def length_score(expr):
+            return len(expr)
+
         def get_result():
-            result = cs.get_best_ensembles(score_method=cs.length_score,
+            result = csn.get_best_ensembles(score_method=length_score, # cs.
                                names=systems,
                                operators=['&', '|'],
                                order=None,
                                minimum_increase=0)
 
             #print(result.print_all_no_score())
-            return result.print_all_no_score()
+            return result
+        
+        return [r[0] for r in get_result()]
 
 
-        results = get_result()
+def get_ensemble_pairs(systems=['biomedicus', 'clamp', 'ctakes', 'metamap', 'quick_umls']): 
 
-        # tetrun True if number of operators found in expression
+        results = get_ensemble_combos(systems)
+
+        # return True if number of operators found in expression
         def n_operators(x, y, n, m, o):
 
             s1 = sum([x.count(o[0]), x.count(o[1])])
@@ -2212,19 +2151,18 @@ def get_ensemble_combos(systems=['biomedicus', 'clamp', 'ctakes', 'metamap', 'qu
             s1 = s1.replace('(', '').replace(')','').split()
             s2 = s2.replace('(', '').replace(')','').split()
 
-
             return len(set(s1).intersection(set(s2)))
 
-        #systems=['biomedicus', 'clamp', 'ctakes', 'metamap', 'quick_umls']
         operators = ['&', '|']
 
         # parse out into all paired combos for comparison
         test = [r for r in results if sum([r.count('|'), r.count('&')]) < len(systems) - 1]
         out = list(combinations(test, 2))
-        expressions = [o for i in range(len(systems) - 2) for j in range(len(systems) - 2)  if i + j < len(systems) - 1 for o in out if n_operators(o[0], o[1], i, j, operators) and overlap(o[0], o[1], operators) == 0]
+        #expressions = [o for i in range(len(systems) - 2) for j in range(len(systems) - 2)  if i + j < len(systems) - 1 for o in out if n_operators(o[0], o[1], i, j, operators) and overlap(o[0], o[1], operators) == 0]
 
+        return [o for i in range(len(systems) - 2) for j in range(len(systems) - 2) if i + j < len(systems) - 1 
+                for o in out if n_operators(o[0], o[1], i, j, operators) and overlap(o[0], o[1], operators) == 0]
 
-        return expressions
 
 # use with combo_searcher
 def ad_hoc_measure(statement, analysis_type, corpus, measure, filter_semtype, semtype = None):
@@ -2310,7 +2248,7 @@ def main():
             if filter_semtype:
                 for semtype in semtypes:
                     test = get_valid_systems(systems, semtype)
-                    expressions = get_ensemble_combos(test)
+                    expressions = get_ensemble_pairs(test)
                     print('SYSTEMS FOR SEMTYPE', semtype, 'ARE', test)
 
                     for c in expressions:
