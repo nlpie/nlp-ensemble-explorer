@@ -16,8 +16,7 @@
   limitations under the License.
 '''
 
-import combo_searcher_new.combo_searcher as csn
-import combo_searcher.combo_searcher as cs
+import combo_searcher_new.combo_searcher as cs
 import importlib as i
 import gevent
 from scipy import stats  
@@ -53,9 +52,9 @@ import statistics as s
 # need to add semantic type filrering when reading in sys_data
 #corpus = 'ray_test'
 #corpus = 'clinical_trial2'
-corpus = 'fairview'
+#corpus = 'fairview'
 #corpus = 'i2b2'
-#corpus = 'mipacq'
+corpus = 'mipacq'
 
 # STEP-2: CHOOSE YOUR DATA DIRECTORY; this is where output data will be saved on your machine
 data_directory = '/Users/gms/development/nlp/nlpie/data/ensembling-u01/output/' 
@@ -66,7 +65,7 @@ data_out = Path('/Users/gms/development/nlp/nlpie/data/ensembling-u01/output/')
 systems = ['biomedicus', 'clamp', 'ctakes', 'metamap', 'quick_umls']
 
 # STEP-4: CHOOSE TYPE OF RUN:  
-rtype = 7      # OPTIONS INCLUDE: 2->Ensemble; 3->Tests; 4 -> majority vote; 6 -> add hoc ensemble; 7 -> complementarity
+rtype = 4      # OPTIONS INCLUDE: 2->Ensemble; 3->Tests; 4 -> majority vote; 6 -> add hoc ensemble; 7 -> complementarity
                # The Ensemble can include the max system set ['ctakes','biomedicus','clamp','metamap','quick_umls']
     
 # STEP-5: CHOOSE WHAT TYPE OF ANALYSIS YOU'D LIKE TO RUN ON THE CORPUS
@@ -133,7 +132,7 @@ src_table = 'sofa'
 run_type = 'overlap'
 
 # STEP-11: Specify type of ensemble: merge or vote: used for file naming -> TODO: remove!
-ensemble_type = 'merge'
+ensemble_type = 'vote'
 
 #****** TODO 
 '''
@@ -556,7 +555,7 @@ def confused(sys1, ann1):
     return TP, TN, FP, FN
 
 @ft.lru_cache(maxsize=None)
-def get_labels(analysis_type, corpus, filter_semtype, semtype):
+def get_labels(analysis_type, corpus, filter_semtype, semtype = None):
     
     if analysis_type == 'entity':
         labels = ["concept"]
@@ -824,13 +823,18 @@ def vectorized_complementarity(r: object, analysis_type: str, corpus: str, c: tu
     _, _, aFP, aFN = confused(np.array(s_a2), np.array(a2))
     _, _, bFP, bFN = confused(np.array(s_b2), np.array(a2))
 
-    b_over_a, a_over_b, mean_comp = complementarity_measures(FN, FP, aFN, aFP, bFN, bFP)
+    #b_over_a, a_over_b, mean_comp = complementarity_measures(FN, FP, aFN, aFP, bFN, bFP)
+    b_over_a, a_over_b = complementarity_measures(FN, FP, aFN, aFP, bFN, bFP)
     
     b_over_a['system'] = str((r.nameB, r.nameA))
+    b_over_a['B'] = r.nameB    
+    b_over_a['A'] = r.nameA
 
     a_over_b['system'] = str((r.nameA, r.nameB))
+    a_over_b['B'] = r.nameB    
+    a_over_b['A'] = r.nameA
 
-    mean_comp['system'] = 'mean_comp(' + r.nameA + ',' + r.nameB + ')'
+    #mean_comp['system'] = 'mean_comp(' + r.nameA + ',' + r.nameB + ')'
 
     frames = [out, pd.DataFrame(b_over_a, index=[0])]
     out = pd.concat(frames, ignore_index=True, sort=False) 
@@ -838,8 +842,8 @@ def vectorized_complementarity(r: object, analysis_type: str, corpus: str, c: tu
     frames = [out, pd.DataFrame(a_over_b, index=[0])]
     out = pd.concat(frames, ignore_index=True, sort=False) 
 
-    frames = [out, pd.DataFrame(mean_comp, index=[0])]
-    out = pd.concat(frames, ignore_index=True, sort=False) 
+#    frames = [out, pd.DataFrame(mean_comp, index=[0])]
+#    out = pd.concat(frames, ignore_index=True, sort=False) 
 
     return out
         
@@ -847,22 +851,19 @@ def complementarity_measures(FN, FP, aFN, aFP, bFN, bFP):
     
     compA = 1 - (FN+FP)/(aFN + aFP)
     compB = 1 - (FN+FP)/(bFN + bFP)
-    meanComp = s.mean([compA, compB])
+    #meanComp = s.mean([compA, compB])
    
     r_compA = 1 - (FP)/(aFP)
     r_compB = 1 - (FP)/(bFP)
-    meanR = s.mean([r_compA, r_compB])
-
+    #meanR = s.mean([r_compA, r_compB])
     
     p_compA = 1 - (FN)/(aFN)
     p_compB = 1 - (FN)/(bFN)
-    meanP = s.mean([p_compA, p_compB])
-
+    #meanP = s.mean([p_compA, p_compB])
     
     f1_compA = 2*(p_compA*r_compA)/(p_compA + r_compA)
     f1_compB = 2*(p_compB*r_compB)/(p_compB + r_compB)
-    meanF1 = s.mean([f1_compA, f1_compB])
-
+    #meanF1 = s.mean([f1_compA, f1_compB])
     
     if FN > aFN:
         print('a bad n:', FN, aFN)
@@ -876,12 +877,11 @@ def complementarity_measures(FN, FP, aFN, aFP, bFN, bFP):
         print('both bad p:', FP, aFP, bFP)
     
     b_over_a = {'test': 'COMP(A, B)', 'max_prop_error_reduction': compA, 'p': p_compA, 'r': r_compA, 'F1-score': f1_compA}
-
     a_over_b = {'test': 'COMP(B, A)', 'max_prop_error_reduction': compB, 'p': p_compB, 'r': r_compB, 'F1-score': f1_compB}
 
-    mean_complementarity = {'test': 'mean(COMP(B, A),COMP(A, B))', 'max_prop_error_reduction': meanComp, 'mean p': meanP, 'mean r': meanR, 'mean F1-score': meanF1}
+    #mean_complementarity = {'test': 'mean(COMP(B, A),COMP(A, B))', 'max_prop_error_reduction': meanComp, 'mean p': meanP, 'mean r': meanR, 'mean F1-score': meanF1}
 
-    return b_over_a, a_over_b, mean_complementarity
+    return b_over_a, a_over_b #, mean_complementarity
 
 
 @ft.lru_cache(maxsize=None)
@@ -1164,17 +1164,18 @@ def disambiguate(df):
     
     return out  
 
-# majority vote -> plurality for enttity only, witth tties winning
+# majority vote -> plurality for entity only, witth tties winning
 def vote(df, systems):
     
-    cases = set(df['note_id'].tolist())
+    cases = set(df['case'].tolist())
+    
+    data = []
+    out = pd.DataFrame()
     
     for case in cases:
         i = 0
-        data = []
-        out = pd.DataFrame()
         
-        test = df[df['note_id']==case].copy()
+        test = df[df.case==case].copy()
         
         for row in test.itertuples():
 
@@ -1186,12 +1187,12 @@ def vote(df, systems):
            
             fx = fx.drop_duplicates()
  
-            if (len(fx.systems.tolist())>=n):
+            if len(set(fx.system.tolist()))>n:
                 data.append(fx)
              
-        out = pd.concat(data, axis=0)
+    out = pd.concat(data, axis=0)
    
-    out = out.drop_duplicates(['begin', 'end', 'note_id'])
+    out = out.drop_duplicates(['begin', 'end', 'case'])
     
     return out  
 
@@ -1693,7 +1694,7 @@ def ensemble_control(systems, analysis_type, corpus, run_type, filter_semtype, s
             metrics = run_ensemble(test, analysis_type, corpus, filter_semtype, semtype)
             generate_ensemble_metrics(metrics, analysis_type, corpus, ensemble_type, filter_semtype, semtype)
     else:
-        metrics = run_ensemble(systems, analysis_type, corpus, filter_semtype, expression)
+        metrics = run_ensemble(systems, analysis_type, corpus, filter_semtype)
         generate_ensemble_metrics(metrics, analysis_type, corpus, ensemble_type, filter_semtype)
 
 
@@ -1790,7 +1791,7 @@ def get_majority_sys(systems, analysis_type, corpus, filter_semtype, semtype = N
     sys_test = []
     
     if 'entity' in analysis_type: 
-        cols_to_keep = ['begin', 'end', 'case', 'label']
+        cols_to_keep = ['begin', 'end', 'case', 'label', 'system']
     elif 'cui' in analysis_type: 
         cols_to_keep = ['case', 'label']
     elif 'full' in analysis_type: 
@@ -1813,110 +1814,18 @@ def get_majority_sys(systems, analysis_type, corpus, filter_semtype, semtype = N
 
     return vote(out, systems) 
 
-
-#        labels = get_labels(analysis_type, corpus, filter_semtype, semtype)
-#        
-#        sys = df[df['system']==system][cols_to_keep].copy()
-#        results.df = sys
-#        results.labels = labels
-#        test = vectorized_annotations(results, analysis_type)
-#      
-#        if analysis_type != 'cui':
-#            vector = np.asarray(flatten_list(test), dtype=np.int32) 
-#        else:
-#            vector = test
-#        
-#        d[system] = vector
-#        sys_test.append(d[system])
-#        
-#    
-#    n = int(len(systems) / 2)
-#    if analysis_type != 'full':
-#        output = sum(np.array(sys_test))
-#        if ((len(systems) % 2) != 0):
-#            vote = np.where(output > n, 1, 0)
-#        else:
-#            vote = np.where(output > n, 1, 
-#             (np.where(output == n, random.randint(0, 1), 0)))
-#        
-#    elif analysis_type == 'full':
-##         vote = mode(np.stack(sys_test), axis=0)
-##         vote = vote.mode[0]
-#
-#        vote = list()
-#        X = np.vstack(sys_test)
-##         for i in range(X.shape[1]):
-##             unique, counts = np.unique(X[:, i], return_counts=True)
-##             print(systems, unique, counts)
-#            
-##             idx = np.argmax(counts)
-##             if counts[idx] > n:
-##                 vote.append(unique[idx])
-##             else:
-##                 vote.append(random.choice(unique))
-#        
-#        # 
-#        for i in range(X.shape[1]):
-#            unique, counts = np.unique(X[:, i], return_counts=True)
-#            idx = np.argmax(counts)
-#            if counts[idx] > n or len(counts) == 1:
-#                vote.append(unique[idx])
-#            elif len(counts) == X.shape[0]:
-#                vote.append(random.choice(unique))
-#            else:
-#                # take highest, non-majority
-#                m = 1
-#                val = 0
-#                for j in range(len(list(counts))):
-#                    if counts[j] > m:
-#                        m = counts[j]
-#                        val = unique[j]
-#
-#                if j == len(list(counts)) - 1:
-#                    if m == 1:
-#                        vote.append(random.choice(unique))
-#                    else:
-#                        vote.append(val)
-#        
-#    return vote
-
-
-# @ft.lru_cache(maxsize=None)
-# #def vectorized_cooccurences_test(ref, vote, analysis_type: str, corpus: str, filter_semtype, semtype = None) -> np.int64:
-# def vectorized_cooccurences_test(r: object, analysis_type: str, corpus: str, filter_semtype, semtype = None) -> np.int64:
-   
-#     if analysis_type != 'cui':
-#         report = classification_report(r.ref, r.sys, output_dict=True)
-#         macro_precision =  report['macro avg']['precision'] 
-#         macro_recall = report['macro avg']['recall']    
-#         macro_f1 = report['macro avg']['f1-score']
-#         if analysis_type == 'entity':
-#             TN, FP, FN, TP = confusion_matrix(r.ref, r.sys).ravel()
-#             return ((TP, TN, FP, FN), (macro_precision, macro_recall, macro_f1))
-#         else:
-#             return ((0, 0, 0, 0), (macro_precision, macro_recall, macro_f1))
-            
-#     else:
-#         x_sparse = sparse.csr_matrix(r.ref)
-#         y_sparse = sparse.csr_matrix(r.sys)
-#         report = classification_report(x_sparse, y_sparse, output_dict=True)
-#         macro_precision =  report['macro avg']['precision'] 
-#         macro_recall = report['macro avg']['recall']    
-#         macro_f1 = report['macro avg']['f1-score']
-#         return ((0, 0, 0, 0), (macro_precision, macro_recall, macro_f1))
-
     
 def majority_overlap_vote_out(ref, vote, corpus):   
     
     class Results(object):
         def __init__(self):
             self.ref = np.array(list())
-            self.sys = np.array(list())
-            
+            self.system_merges = pd.DataFrame()
+
     r = Results()
     
     r.ref = ref
-    r.sys = vote
+    r.system_merges = vote
    
     ((TP, TN, FP, FN),(p,r,f1)) = vectorized_cooccurences(r, analysis_type, corpus, filter_semtype, semtype = None)
     
@@ -1959,6 +1868,10 @@ def majority_overlap_vote_out(ref, vote, corpus):
 # control vote run
 def majority_vote(systems, analysis_type, corpus, run_type, filter_semtype, semtypes = None):
     print(semtypes, systems)
+
+    #results = Results()
+    
+    
     if filter_semtype:
         
         metrics = pd.DataFrame()
@@ -1991,13 +1904,13 @@ def majority_vote(systems, analysis_type, corpus, run_type, filter_semtype, semt
             ref = get_reference_vector(analysis_type, corpus, filter_semtype)
             
             vote = get_majority_sys(systems, analysis_type, corpus, filter_semtype)
-            labels = get_labels(analysis_type, corpus, filter_semtype, semtype)
+            labels = get_labels(analysis_type, corpus, filter_semtype)
         
-            results.df = votee
-            results.labels = labels
-            test = vectorized_annotations(results, analysis_type)
+            #results.df = vote
+            #results.labels = labels
+            #test = vectorized_annotations(vote, analysis_type, labels)
 
-            metrics = majority_overlap_vote_out(ref, test, corpus)
+            metrics = majority_overlap_vote_out(ref, vote, corpus)
             
         #elif run_type == 'exact':
         #    sys = majority_exact_sys(systems, analysis_type, corpus, filter_semtype)
@@ -2112,7 +2025,7 @@ def get_ensemble_combos(systems=['biomedicus', 'clamp', 'ctakes', 'metamap', 'qu
             return len(expr)
 
         def get_result():
-            result = csn.get_best_ensembles(score_method=length_score, # cs.
+            result = cs.get_best_ensembles(score_method=length_score, # cs.
                                names=systems,
                                operators=['&', '|'],
                                order=None,
@@ -2160,7 +2073,7 @@ def get_ensemble_pairs(systems=['biomedicus', 'clamp', 'ctakes', 'metamap', 'qui
         out = list(combinations(test, 2))
         #expressions = [o for i in range(len(systems) - 2) for j in range(len(systems) - 2)  if i + j < len(systems) - 1 for o in out if n_operators(o[0], o[1], i, j, operators) and overlap(o[0], o[1], operators) == 0]
 
-        return [o for i in range(len(systems) - 2) for j in range(len(systems) - 2) if i + j < len(systems) - 1 
+        return [o for i in range(len(systems) - 1) for j in range(len(systems) - 1) if i + j < len(systems) - 1 
                 for o in out if n_operators(o[0], o[1], i, j, operators) and overlap(o[0], o[1], operators) == 0]
 
 
@@ -2267,7 +2180,9 @@ def main():
 
 
             else:
-                expressions = get_ensemble_combos(systems)
+                expressions = get_ensemble_pairs(systems)
+
+                print('total pairs', len(expressions))
                
                 for c in expressions:
                     print('complementarity between:', c)
