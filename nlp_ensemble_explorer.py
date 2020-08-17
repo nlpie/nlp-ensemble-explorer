@@ -1769,18 +1769,19 @@ def majority_vote(systems, analysis_type, corpus, run_type, filter_semtype, semt
             test = get_valid_systems(systems, semtype)
             print('SYSYEMS FOR SEMTYPE', semtype, 'ARE', test)
             
-            if run_type == 'overlap':
+            if run_type == 'overlap' and len(test) > 1:
                 ref = get_reference_vector(analysis_type, corpus, filter_semtype, semtype)
-                vote = get_majority_sys(systems, analysis_type, corpus, filter_semtype, semtype)
+                vote = get_majority_sys(test, analysis_type, corpus, filter_semtype, semtype)
                 labels = get_labels(analysis_type, corpus, filter_semtype, semtype)
         
                 out = majority_overlap_vote_out(ref, vote, corpus, semtype)
-            
-            out['semgroup'] = semtype
-            out['systems'] = ','.join(test)
-            generate_ensemble_metrics(out, analysis_type, corpus, ensemble_type, filter_semtype, semtype)
-            frames = [metrics, out]
-            metrics = pd.concat(frames, ignore_index=True, sort=False)
+           
+            if len(test) > 1:
+                out['semgroup'] = semtype
+                out['systems'] = ','.join(test)
+                generate_ensemble_metrics(out, analysis_type, corpus, ensemble_type, filter_semtype, semtype)
+                frames = [metrics, out]
+                metrics = pd.concat(frames, ignore_index=True, sort=False)
                 
     else:
         if run_type == 'overlap':
