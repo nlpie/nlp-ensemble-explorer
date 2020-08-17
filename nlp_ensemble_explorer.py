@@ -99,7 +99,7 @@ engine_request = str(database_type)+'://'+database_username+':'+database_passwor
 engine = create_engine(engine_request, pool_pre_ping=True, pool_size=20, max_overflow=30)
 
 # STEP-(8A): FILTER BY SEMTYPE
-filter_semtype = False
+filter_semtype = True
 
 # STEP-(8B): IF STEP-(8A) == True -> GET REFERENCE SEMTYPES
 
@@ -593,38 +593,25 @@ def vectorized_annotations(ann, analysis_type, labels):
 def vectorized_cooccurences(r: object, analysis_type: str, corpus: str, filter_semtype, semtype = None) -> np.int64:
     docs = get_docs(corpus)
     
-#    if filter_semtype:
-#        ann = get_ref_ann(analysis_type, corpus, filter_semtype, semtype)
-#    else: 
-#        ann = get_ref_ann(analysis_type, corpus, filter_semtype)
         
     sys = get_sys_ann(analysis_type, r)
     
     labels = get_labels(analysis_type, corpus, filter_semtype, semtype)
     
     sys2 = list()
-#    ann2 = list()
     s2 = list()
-#    a2 = list()
     
     for n in range(len(docs)):
         
         if analysis_type != 'cui':
-        #    a1 = list(ann.loc[ann.case == docs[n][0]].itertuples(index=False))
             s1 = list(sys.loc[sys.case == docs[n][0]].itertuples(index=False))
-        #    ann1 = label_vector(docs[n][1], a1, labels)
             sys1 = label_vector(docs[n][1], s1, labels)
-
             sys2.append(list(sys1))
-        #    ann2.append(list(ann1))
 
         else:
-        #    a = ann.loc[ann.case == docs[n][0]]['label'].tolist()
             s = sys.loc[sys.case == docs[n][0]]['label'].tolist()
-        #    x = [1 if x in a else 0 for x in labels]
-            y = [1 if x in s else 0 for x in labels]
-            s2.append(y)
-        #    a2.append(x)
+            x = [1 if x in s else 0 for x in labels]
+            s2.append(x)
 
 
     a2 = get_reference_vector(analysis_type, corpus, filter_semtype, semtype)
@@ -655,68 +642,6 @@ def vectorized_cooccurences(r: object, analysis_type: str, corpus: str, filter_s
         macro_f1 = report['macro avg']['f1-score']
         return ((0, 0, 0, 0), (macro_precision, macro_recall, macro_f1))
 
-
-
-# @ft.lru_cache(maxsize=None)
-# def vectorized_cooccurences(r: object, analysis_type: str, corpus: str, filter_semtype, semtype = None) -> np.int64:
-    
-#     docs = get_docs(corpus)
-    
-#     if filter_semtype:
-#         ann = get_ref_ann(analysis_type, corpus, filter_semtype, semtype)
-#     else: 
-#         ann = get_ref_ann(analysis_type, corpus, filter_semtype)
-    
-#     labels = get_labels(analysis_type, corpus, filter_semtype, semtype)
-    
-#     sys = get_sys_ann(analysis_type, r)
-    
-#     sys2 = list()
-#     ann2 = list()
-#     s2 = list()
-#     a2 = list()
-    
-#     for n in range(len(docs)):
-        
-#         if analysis_type != 'cui':
-#             a1 = list(ann.loc[ann.case == docs[n][0]].itertuples(index=False))
-#             s1 = list(sys.loc[sys.case == docs[n][0]].itertuples(index=False))
-#             ann1 = label_vector(docs[n][1], a1, labels)
-#             sys1 = label_vector(docs[n][1], s1, labels)
-
-#             sys2.append(list(sys1))
-#             ann2.append(list(ann1))
-
-#         else:
-#             a = ann.loc[ann.case == docs[n][0]]['label'].tolist()
-#             s = sys.loc[sys.case == docs[n][0]]['label'].tolist()
-#             x = [1 if x in a else 0 for x in labels]
-#             y = [1 if x in s else 0 for x in labels]
-#             s2.append(y)
-#             a2.append(x)
-            
-#     if analysis_type != 'cui': #binary and multiclass
-#         a2 = flatten_list(ann2)
-#         s2 = flatten_list(sys2)
-#         report = classification_report(a2, s2, output_dict=True)
-#         macro_precision =  report['macro avg']['precision'] 
-#         macro_recall = report['macro avg']['recall']    
-#         macro_f1 = report['macro avg']['f1-score']
-        
-#         if analysis_type == 'entity':
-#             TN, FP, FN, TP = confusion_matrix(a2, s2).ravel()
-#             return ((TP, TN, FP, FN), (macro_precision, macro_recall, macro_f1))
-#         else:
-#             return ((0, 0, 0, 0), (macro_precision, macro_recall, macro_f1))
-        
-#     else: # multilabel/multiclass
-#         x_sparse = sparse.csr_matrix(a2)
-#         y_sparse = sparse.csr_matrix(s2)
-#         report = classification_report(x_sparse, y_sparse, output_dict=True)
-#         macro_precision =  report['macro avg']['precision'] 
-#         macro_recall = report['macro avg']['recall']    
-#         macro_f1 = report['macro avg']['f1-score']
-#         return ((0, 0, 0, 0), (macro_precision, macro_recall, macro_f1))
                                        
 # http://www.lrec-conf.org/proceedings/lrec2016/pdf/105_Paper.pdf        
 def vectorized_complementarity(r: object, analysis_type: str, corpus: str, c: tuple, filter_semtype, semtype = None) -> np.int64:
@@ -1129,7 +1054,7 @@ def disambiguate(df):
         data = []
         out = pd.DataFrame()
         
-        test = df[df['note_id']==case].copy()
+        test = df.loc[df['note_id']==case].copy()
         
         for row in test.itertuples():
 
@@ -1166,7 +1091,8 @@ def disambiguate(df):
 
 # majority vote -> plurality for entity only, witth tties winning
 def vote(df, systems):
-    
+   
+    df = df.drop_duplicates(subset=['begin', 'end', 'case', 'system'])
     cases = set(df['case'].tolist())
     
     data = []
@@ -1175,11 +1101,11 @@ def vote(df, systems):
     for case in cases:
         i = 0
         
-        test = df[df.case==case].copy()
+        test = df.loc[df.case==case].copy()
         
         for row in test.itertuples():
 
-            fx = test[(test.begin == row.begin) & (test.end == row.end)].copy()
+            fx = test.loc[(test.begin == row.begin) & (test.end == row.end)].copy()
 
             n = int(len(systems)/2)
 
@@ -1189,10 +1115,14 @@ def vote(df, systems):
  
             if len(set(fx.system.tolist()))>n:
                 data.append(fx)
+            #elif len(set(fx.system.tolist()))==n:
+            #    fx.reset_index(inplace=True)
+            #    fx = fx.reindex(np.random.permutation(out.index))
+            #    fx = fx.drop_duplicates(['begin', 'end', 'case'])
              
     out = pd.concat(data, axis=0)
    
-    out = out.drop_duplicates(['begin', 'end', 'case'])
+    out = out.drop_duplicates(subset=['begin', 'end', 'case'])
     
     return out  
 
@@ -1520,33 +1450,6 @@ def get_metrics(boolean_expression: str, analysis_type: str, corpus: str, run_ty
         else:
             ((TP, TN, FP, FN),(macro_p,macro_r,macro_f1)) = vectorized_cooccurences(r, analysis_type, corpus, filter_semtype)
           
-            ### 
-          #  labels = get_labels(analysis_type, corpus, filter_semtype, semtype)
-            
-          #  df = r.system_merges.copy()
-            
-          #  df = df.rename(index=str, columns={"note_id": "case", "cui": "value"})
-          #  df = set_labels(analysis_type, df)
-            
-          #  results.df = df
-          #  results.labels = labels
-          #  test = vectorized_annotations(results, analysis_type)
-            
-          #  if analysis_type != 'cui':
-          #      sys =  np.asarray(flatten_list(test), dtype=np.int32) 
-          #  else: 
-          #      sys =  np.asarray(test, dtype=np.int32)
-
-          #  ref = get_reference_vector(analysis_type, corpus, filter_semtype, semtype)
-            
-          #  results.ref = ref
-          #  results.sys = sys
-            
-            ###
-            
-            #((TP, TN, FP, FN),(macro_p,macro_r,macro_f1,micro_p,micro_r,micro_f1)) = vectorized_cooccurences(results, analysis_type, corpus, filter_semtype)
-        
-        #print('results:',((TP, TN, FP, FN),(macro_p,macro_r,macro_f1)))
         # TODO: validate against ann1/sys1 where val = 1
         # total by number chars
         system_n = TP + FP
@@ -1581,9 +1484,6 @@ def get_metrics(boolean_expression: str, analysis_type: str, corpus: str, run_ty
         d['macro_p'] = macro_p
         d['macro_r'] = macro_r
         d['macro_f1'] = macro_f1
-#         d['micro_p'] = micro_p
-#         d['micro_r'] = micro_r
-#         d['micro_f1'] = micro_f1
         
         # return full metrics
         return d
@@ -1755,7 +1655,6 @@ def get_merge_data(boolean_expression: str, analysis_type: str, corpus: str, run
 def get_reference_vector(analysis_type, corpus, filter_semtype, semtype = None):
     ref_ann = get_ref_ann(analysis_type, corpus, filter_semtype, semtype)
 
-    #df = ref_ann.copy()
     df = ref_ann
     
     if 'entity' in analysis_type: 
@@ -1768,14 +1667,8 @@ def get_reference_vector(analysis_type, corpus, filter_semtype, semtype = None):
     labels = get_labels(analysis_type, corpus, filter_semtype, semtype)
     
     df = df.drop_duplicates(subset=cols_to_keep)
-    #ref = df[cols_to_keep].copy()
     ref = df[cols_to_keep]
     
-    #results = Results()
-    
-    #results.df = ref
-    #results.labels = labels
-    #test = vectorized_annotations(results, analysis_type)
     test = vectorized_annotations(ref, analysis_type, labels)
     
     if analysis_type != 'cui':
@@ -1785,7 +1678,7 @@ def get_reference_vector(analysis_type, corpus, filter_semtype, semtype = None):
 
     return ref
 
-def get_majority_sys(systems, analysis_type, corpus, filter_semtype, semtype = None):
+def get_majority_sys(systems, analysis_type, corpus, filter_semtype, semtype):
     
     d = {}
     sys_test = []
@@ -1800,7 +1693,7 @@ def get_majority_sys(systems, analysis_type, corpus, filter_semtype, semtype = N
     out = pd.DataFrame()
   
     for system in systems:
-        print(system)
+        print(system, semtype)
         sys_ann = get_sys_data(system, analysis_type, corpus, filter_semtype, semtype)
         df = sys_ann.copy()
         df = df.dropna()
@@ -1815,7 +1708,7 @@ def get_majority_sys(systems, analysis_type, corpus, filter_semtype, semtype = N
     return vote(out, systems) 
 
     
-def majority_overlap_vote_out(ref, vote, corpus):   
+def majority_overlap_vote_out(ref, vote, corpus, semtype = None):   
     
     class Results(object):
         def __init__(self):
@@ -1827,7 +1720,7 @@ def majority_overlap_vote_out(ref, vote, corpus):
     r.ref = ref
     r.system_merges = vote
    
-    ((TP, TN, FP, FN),(p,r,f1)) = vectorized_cooccurences(r, analysis_type, corpus, filter_semtype, semtype = None)
+    ((TP, TN, FP, FN),(p,r,f1)) = vectorized_cooccurences(r, analysis_type, corpus, filter_semtype, semtype)
     
     if analysis_type == 'entity':
         #TP, TN, FP, FN = confused(vote, ref)
@@ -1869,9 +1762,6 @@ def majority_overlap_vote_out(ref, vote, corpus):
 def majority_vote(systems, analysis_type, corpus, run_type, filter_semtype, semtypes = None):
     print(semtypes, systems)
 
-    #results = Results()
-    
-    
     if filter_semtype:
         
         metrics = pd.DataFrame()
@@ -1881,17 +1771,10 @@ def majority_vote(systems, analysis_type, corpus, run_type, filter_semtype, semt
             
             if run_type == 'overlap':
                 ref = get_reference_vector(analysis_type, corpus, filter_semtype, semtype)
-                vote = majority_overlap_sys(test, analysis_type, corpus, filter_semtype, semtype)
-                out = majority_overlap_vote_out(ref, vote, corpus)
-                #generate_ensemble_metrics(metrics, analysis_type, corpus, ensemble_type, filter_semtype, semtype)
-          #  elif run_type == 'exact':
-          #      sys = majority_exact_sys(test, analysis_type, corpus, filter_semtype, semtype)
-          #      d = majority_exact_vote_out(sys, filter_semtype, semtype)
-          #      metrics = pd.DataFrame(d, index=[0])
-          #  elif run_type == 'cui':
-          #      sys = majority_cui_sys(test, analysis_type, corpus, filter_semtype, semtype)
-          #      d = majority_cui_vote_out(sys, filter_semtype, semtype)
-          #      metrics = pd.DataFrame(d, index=[0])
+                vote = get_majority_sys(systems, analysis_type, corpus, filter_semtype, semtype)
+                labels = get_labels(analysis_type, corpus, filter_semtype, semtype)
+        
+                out = majority_overlap_vote_out(ref, vote, corpus, semtype)
             
             out['semgroup'] = semtype
             out['systems'] = ','.join(test)
@@ -1902,25 +1785,10 @@ def majority_vote(systems, analysis_type, corpus, run_type, filter_semtype, semt
     else:
         if run_type == 'overlap':
             ref = get_reference_vector(analysis_type, corpus, filter_semtype)
-            
             vote = get_majority_sys(systems, analysis_type, corpus, filter_semtype)
             labels = get_labels(analysis_type, corpus, filter_semtype)
         
-            #results.df = vote
-            #results.labels = labels
-            #test = vectorized_annotations(vote, analysis_type, labels)
-
             metrics = majority_overlap_vote_out(ref, vote, corpus)
-            
-        #elif run_type == 'exact':
-        #    sys = majority_exact_sys(systems, analysis_type, corpus, filter_semtype)
-        #    d = majority_exact_vote_out(sys, filter_semtype)
-        #    metrics = pd.DataFrame(d, index=[0])
-        #    
-        #elif run_type == 'cui':
-        #    sys = majority_cui_sys(systems, analysis_type, corpus, filter_semtype)
-        #    d = majority_cui_vote_out(sys, filter_semtype)
-        #    metrics = pd.DataFrame(d, index=[0])
             
         metrics['systems'] = ','.join(systems)
         generate_ensemble_metrics(metrics, analysis_type, corpus, ensemble_type, filter_semtype)
@@ -1928,94 +1796,6 @@ def majority_vote(systems, analysis_type, corpus, run_type, filter_semtype, semt
     print(metrics)
     
     return metrics
-
-
-#def majority_cui_sys(systems, analysis_type, corpus, filter_semtype, semtype = None):
-#   
-#    cols_to_keep = ['cui', 'note_id', 'system']
-#    
-#    df = pd.DataFrame()
-#    for system in systems:
-#        if filter_semtype:
-#            sys = get_sys_data(system, analysis_type, corpus, filter_semtype, semtype)
-#        else:
-#            sys = get_sys_data(system, analysis_type, corpus, filter_semtype)
-#            
-#        sys = sys[sys['system'] == system][cols_to_keep].drop_duplicates()
-#        
-#        frames = [df, sys]
-#        df = pd.concat(frames)
-#        
-#    return df
-#
-#def majority_cui_vote_out(sys, filter_semtype, semtype = None):
-#    
-#    sys = sys.astype(str)
-#    sys['value_cui'] = list(zip(sys.cui, sys.note_id.astype(str)))
-#    sys['count'] = sys.groupby(['value_cui'])['value_cui'].transform('count')
-#
-#    n = int(len(systems) / 2)
-#    if ((len(systems) % 2) != 0):
-#        sys = sys[sys['count'] > n]
-#    else:
-#        # https://stackoverflow.com/questions/23330654/update-a-dataframe-in-pandas-while-iterating-row-by-row
-#        for i in sys.index:
-#            if sys.at[i, 'count'] == n:
-#                sys.at[i, 'count'] = random.choice([1,len(systems)])
-#        sys = sys[sys['count'] > n]
-#
-#    sys = sys.drop_duplicates(subset=['value_cui', 'cui', 'note_id'])
-#    ref = get_ref_ann(analysis_type, corpus, filter_semtype, semtype)
-#
-#    c = get_cooccurences(ref, sys, analysis_type, corpus) # get matches, FN, etc.
-#
-#    if c.ref_system_match > 0: # compute confusion matrix metrics and write to dictionary -> df
-#        # get dictionary of confusion matrix metrics
-#        print(cm_dict(c.ref_only, c.system_only, c.ref_system_match, c.system_n, c.ref_n))
-#        return cm_dict(c.ref_only, c.system_only, c.ref_system_match, c.system_n, c.ref_n)
-#    
-#
-#def majority_exact_sys(systems, analysis_type, corpus, filter_semtype, semtype = None):
-#   
-#    cols_to_keep = ['begin', 'end', 'note_id', 'system']
-#    
-#    df = pd.DataFrame()
-#    for system in systems:
-#        if filter_semtype:
-#            sys = get_sys_data(system, analysis_type, corpus, filter_semtype, semtype)
-#        else:
-#            sys = get_sys_data(system, analysis_type, corpus, filter_semtype)
-#            
-#        sys = sys[sys['system'] == system][cols_to_keep].drop_duplicates()
-#        
-#        frames = [df, sys]
-#        df = pd.concat(frames)
-#        
-#    return df
-#        
-#def majority_exact_vote_out(sys, filter_semtype, semtype = None):
-#    sys['span'] = list(zip(sys.begin, sys.end, sys.note_id.astype(str)))
-#    sys['count'] = sys.groupby(['span'])['span'].transform('count')
-#
-#    n = int(len(systems) / 2)
-#    if ((len(systems) % 2) != 0):
-#        sys = sys[sys['count'] > n]
-#    else:
-#        # https://stackoverflow.com/questions/23330654/update-a-dataframe-in-pandas-while-iterating-row-by-row
-#        for i in sys.index:
-#            if sys.at[i, 'count'] == n:
-#                sys.at[i, 'count'] = random.choice([1,len(systems)])
-#        sys = sys[sys['count'] > n]
-#
-#    sys = sys.drop_duplicates(subset=['span', 'begin', 'end', 'note_id'])
-#    ref = get_ref_ann(analysis_type, corpus, filter_semtype, semtype)
-#
-#    c = get_cooccurences(ref, sys, analysis_type, corpus) # get matches, FN, etc.
-#
-#    if c.ref_system_match > 0: # compute confusion matrix metrics and write to dictionary -> df
-#        # get dictionary of confusion matrix metrics
-#        print(cm_dict(c.ref_only, c.system_only, c.ref_system_match, c.system_n, c.ref_n))
-#        return cm_dict(c.ref_only, c.system_only, c.ref_system_match, c.system_n, c.ref_n)
 
 
 def get_ensemble_combos(systems=['biomedicus', 'clamp', 'ctakes', 'metamap', 'quick_umls']): 
@@ -2031,7 +1811,6 @@ def get_ensemble_combos(systems=['biomedicus', 'clamp', 'ctakes', 'metamap', 'qu
                                order=None,
                                minimum_increase=0)
 
-            #print(result.print_all_no_score())
             return result
         
         return [r[0] for r in get_result()]
@@ -2101,7 +1880,7 @@ def main():
         analyses: entity only (exact span), cui by document, full (aka (entity and cui on exaact span/exact cui)
         systems: ctakes, biomedicus, clamp, metamap, quick_umls
         
-        TODO -> Vectorization (entity only) -> done:
+        TODO -> Vectorization (entity only) -> done; (all) -> done:
                 add switch for use of TN on single system performance evaluations -> done
                 add switch for overlap matching versus exact span -> done
              -> Other tasks besides concept extraction
