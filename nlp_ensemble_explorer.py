@@ -16,6 +16,7 @@
   limitations under the License.
 '''
 
+import click
 import combo_searcher_new.combo_searcher as cs
 import importlib as i
 import gevent
@@ -48,29 +49,38 @@ import statistics as s
 # TODO: get working with list of corpora
 #corpora = ['mipacq','i2b2','fairview'] #options for concept extraction include 'fairview', 'mipacq' OR 'i2b2'
 
-# cross-system semantic union merge filter for cross system aggregations using custom system annotations file with corpus name and system name using 'ray_test': 
+# cross-system semantic union merge filter for cross system aggregations using custom system annotations file with corpus name and system name using 'ray_test':
+
+# TODO: move to click param
 # need to add semantic type filrering when reading in sys_data
 #corpus = 'ray_test'
 #corpus = 'clinical_trial2'
-#corpus = 'fairview'
+corpus = 'fairview'
 #corpus = 'i2b2'
-corpus = 'mipacq'
+#corpus = 'mipacq'
 
+# TODO: create config.py file
 # STEP-2: CHOOSE YOUR DATA DIRECTORY; this is where output data will be saved on your machine
 data_directory = '/Users/gms/development/nlp/nlpie/data/ensembling-u01/output/' 
 
 data_out = Path('/Users/gms/development/nlp/nlpie/data/ensembling-u01/output/')
 
+# TODO: move to click param
 # STEP-3: CHOOSE WHICH SYSTEMS YOU'D LIKE TO EVALUATE AGAINST THE CORPUS REFERENCE SET
 systems = ['biomedicus', 'clamp', 'ctakes', 'metamap', 'quick_umls']
 
+
+# TODO: move to click param
 # STEP-4: CHOOSE TYPE OF RUN:  
 rtype = 4      # OPTIONS INCLUDE: 2->Ensemble; 3->Tests; 4 -> majority vote; 6 -> add hoc ensemble; 7 -> complementarity
                # The Ensemble can include the max system set ['ctakes','biomedicus','clamp','metamap','quick_umls']
-    
+
+
+# TODO: move to click param
 # STEP-5: CHOOSE WHAT TYPE OF ANALYSIS YOU'D LIKE TO RUN ON THE CORPUS
 analysis_type = 'entity' #options include 'entity', 'cui' OR 'full'
 
+# TODO: create config.py file
 # STEP-(6A): ENTER DETAILS FOR ACCESSING MANUAL ANNOTATION DATA
 database_type = 'mysql+pymysql' # We use mysql+pymql as default
 database_username = 'gms'
@@ -98,9 +108,11 @@ system_annotation = sys_data(corpus, analysis_type)
 engine_request = str(database_type)+'://'+database_username+':'+database_password+"@"+database_url+'/'+database_name
 engine = create_engine(engine_request, pool_pre_ping=True, pool_size=20, max_overflow=30)
 
+# TODO: move to click param
 # STEP-(8A): FILTER BY SEMTYPE
 filter_semtype = True
 
+# TODO: create config.py file
 # STEP-(8B): IF STEP-(8A) == True -> GET REFERENCE SEMTYPES
 
 def ref_semtypes(filter_semtype, corpus):
@@ -128,6 +140,7 @@ semtypes = ref_semtypes(filter_semtype, corpus)
 # STEP-9: Set data directory/table for source documents for vectorization
 src_table = 'sofa'
 
+# TODO: move to click param
 # STEP-10: Specify match type from {'exact', 'overlap'}
 run_type = 'overlap'
 
@@ -1724,7 +1737,6 @@ def majority_overlap_vote_out(ref, vote, corpus, semtype = None):
     
     if analysis_type == 'entity':
         #TP, TN, FP, FN = confused(vote, ref)
-        print((TP, TN, FP, FN),(p,r,f1))
         system_n = TP + FP
         reference_n = TP + FN
 
@@ -1767,7 +1779,7 @@ def majority_vote(systems, analysis_type, corpus, run_type, filter_semtype, semt
         metrics = pd.DataFrame()
         for semtype in semtypes:
             test = get_valid_systems(systems, semtype)
-            print('SYSYEMS FOR SEMTYPE', semtype, 'ARE', test)
+            print('SYSYEMS FOR SEMTYPE', semtype, 'ARE', test)G
             
             if run_type == 'overlap' and len(test) > 1:
                 ref = get_reference_vector(analysis_type, corpus, filter_semtype, semtype)
@@ -1993,3 +2005,50 @@ if __name__ == '__main__':
     get_ipython().run_line_magic('prun', 'main()')
     print('done!')
 
+
+'''
+if __name__ == '__main__':
+
+    @click.group()
+    def analyze():
+        pass
+
+    @analyze.command()
+    @click.option('-c', '--corpus', 'corpus', default='fairview', help='Select corpus for analysis: (i2b2), (mipacq), (fairview)', type=click.STRING)
+    @click.option('-t', '--task', 'analysis_type', default='entity', help='Select analysis task: (entity), (cui), (full)', type=click.STRING)
+    @click.option('-f', '--filter', 'filter_semtype', default=False, help='Filter task for semantic group: (True), (False)', type=click.STRING)
+    @click.option('-m', '--match_type', 'run_type', default='overlap', help='Exact or overlapping match: (overlap), (exact)', type=click.STRING)
+    def ensemble(corpus):
+        """ Analyze ensemble """
+        analysisConf =  AnalysisConfig()
+        if corpus is None:
+            exit(1)
+        systems = ['ctakes','biomedicus','clamp','metamap','quick_umls']
+
+        print('run_type:', run_type)
+        print('Running ', corpus, analysis_type) 
+        
+        if filter_semtype:
+            print(semtypes)
+            ensemble_control(analysisConf.systems, analysis_type, corpus, run_type, filter_semtype, semtypes)
+        else:
+            ensemble_control(analysisConf.systems, analysis_type, corpus, run_type, filter_semtype)
+
+        start = time.perf_counter()
+        run_ensemble(systems, analysis_type, corpus)
+        elapsed = (time.perf_counter() - start)
+        print('elapsed:', elapsed)
+
+    @analyze.command()
+    @click.option('-s', '--systems', 'systems', default='biomedicus', help='Select corpus for analysis: (i2b2), (mipacq), (casi)', type=click.STRING)
+    def tests(systems):
+        """ Analyze ensemble """
+        if systems is None:
+            exit(1)
+        print('Running ', systems) 
+
+    analyze()
+    
+    #get_options()
+    #main()
+'''
