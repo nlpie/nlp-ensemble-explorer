@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 '''
-  Copyright (c) 2019 Regents of the University of Minnesota.
+  Copyright (c) 2020 Regents of the University of Minnesota.
  
   Licensed under the Apache License, Version 2.0 (the "License");
   you may not use this file except in compliance with the License.
@@ -20,7 +20,7 @@ import click
 import combo_searcher_new.combo_searcher as cs
 import importlib as i
 import gevent
-from scipy import stats  
+from scipy import stats 
 from scipy.stats import norm, mode
 from scipy.stats.mstats import gmean
 import random
@@ -41,6 +41,7 @@ from typing import List, Set, Tuple
 from sklearn.metrics import classification_report, confusion_matrix
 from scipy import sparse
 import statistics as s
+
 # The cell below contains the configurable parameters to ensure that our ensemble explorer runs properaly on your machine. 
 # Please read carfully through steps (1-11) before running the rest of the cells.
 
@@ -55,9 +56,10 @@ import statistics as s
 # need to add semantic type filrering when reading in sys_data
 #corpus = 'ray_test'
 #corpus = 'clinical_trial2'
-corpus = 'fairview'
+#corpus = 'fairview'
 #corpus = 'i2b2'
 #corpus = 'mipacq'
+corpus = 'medmentions'
 
 # TODO: create config.py file
 # STEP-2: CHOOSE YOUR DATA DIRECTORY; this is where output data will be saved on your machine
@@ -72,13 +74,13 @@ systems = ['biomedicus', 'clamp', 'ctakes', 'metamap', 'quick_umls']
 
 # TODO: move to click param
 # STEP-4: CHOOSE TYPE OF RUN:  
-rtype = 4      # OPTIONS INCLUDE: 2->Ensemble; 3->Tests; 4 -> majority vote; 6 -> add hoc ensemble; 7 -> complementarity
+rtype = 2      # OPTIONS INCLUDE: 2->Ensemble; 3->Tests; 4 -> majority vote; 6 -> add hoc ensemble; 7 -> complementarity
                # The Ensemble can include the max system set ['ctakes','biomedicus','clamp','metamap','quick_umls']
 
 
 # TODO: move to click param
 # STEP-5: CHOOSE WHAT TYPE OF ANALYSIS YOU'D LIKE TO RUN ON THE CORPUS
-analysis_type = 'entity' #options include 'entity', 'cui' OR 'full'
+analysis_type = 'cui' #options include 'entity', 'cui' OR 'full'
 
 # TODO: create config.py file
 # STEP-(6A): ENTER DETAILS FOR ACCESSING MANUAL ANNOTATION DATA
@@ -87,7 +89,7 @@ database_username = 'gms'
 database_password = 'nej123' 
 database_url = 'localhost' # HINT: use localhost if you're running database on your local machine
 #database_name = 'clinical_trial' # Enter database name
-database_name = 'concepts' # Enter database name
+database_name = 'medmentions' # Enter database name
 
 def ref_data(corpus):
     return corpus + '_all' # Enter the table within the database where your reference data is stored
@@ -97,9 +99,9 @@ table_name = ref_data(corpus)
 # STEP-(6B): ENTER DETAILS FOR ACCESSING SYSTEM ANNOTATION DATA
 
 def sys_data(corpus, analysis_type):
-    if analysis_type == 'entity':
+    if analysis_type == 'entitie':
         return 'analytical_'+corpus+'.csv' # OPTIONS include 'analytical_cui_mipacq_concepts.csv' OR 'analytical_cui_i2b2_concepts.csv' 
-    elif analysis_type in ('cui', 'full'):
+    elif analysis_type in ('cui', 'full', 'entity'):
         return 'analytical_'+corpus+'_cui.csv' # OPTIONS include 'analytical_cui_mipacq_concepts.csv' OR 'analytical_cui_i2b2_concepts.csv' 
         
 system_annotation = sys_data(corpus, analysis_type)
@@ -110,7 +112,7 @@ engine = create_engine(engine_request, pool_pre_ping=True, pool_size=20, max_ove
 
 # TODO: move to click param
 # STEP-(8A): FILTER BY SEMTYPE
-filter_semtype = True
+filter_semtype = False
 
 # TODO: create config.py file
 # STEP-(8B): IF STEP-(8A) == True -> GET REFERENCE SEMTYPES
@@ -145,7 +147,7 @@ src_table = 'sofa'
 run_type = 'overlap'
 
 # STEP-11: Specify type of ensemble: merge or vote: used for file naming -> TODO: remove!
-ensemble_type = 'vote'
+ensemble_type = 'merge'
 
 #****** TODO 
 '''
@@ -530,9 +532,9 @@ def listToTuple(function):
     return wrapper
 
 
-
 def flatten_list(l):
     return [item for sublist in l for item in sublist]
+
 
 #@listToTuple
 #@ft.lru_cache(maxsize=None)
@@ -545,7 +547,7 @@ def label_vector(doc: str, ann: List[int], labels: List[str]) -> np.array:
         i += 1  # 0 is reserved for no label
         idxs = [np.arange(a.begin, a.end) for a in ann if a.label == lab]
         idxs = [j for mask in idxs for j in mask]
-        v[idxs] = i
+        v[idxs] = i 
 
     return v
 
@@ -562,8 +564,6 @@ def confused(sys1, ann1):
 
     # False Negative (FN): we predict a label of 0 (negative), but the true label is 1.
     FN = np.sum(np.logical_and(ann1 > 0, sys1 != ann1))
-    
-    #print('con', TP, TN, FP, FN)
     
     return TP, TN, FP, FN
 
@@ -583,7 +583,7 @@ def get_labels(analysis_type, corpus, filter_semtype, semtype = None):
 def vectorized_annotations(ann, analysis_type, labels):
     
     docs = get_docs(corpus)
-    out= []
+    out = []
     
 #    ann = r.df
 #    labels = r.labels
@@ -593,34 +593,29 @@ def vectorized_annotations(ann, analysis_type, labels):
             a1 = list(ann.loc[ann.case == docs[n][0]].itertuples(index=False))
             a = label_vector(docs[n][1], a1, labels)
             out.append(a)
-
         else:
             a = ann.loc[ann.case == docs[n][0]]['label'].tolist()
             x = [1 if x in a else 0 for x in labels]
-        
             out.append(x)
 
     return out
 
-@ft.lru_cache(maxsize=None)
+#@ft.lru_cache(maxsize=None)
 def vectorized_cooccurences(r: object, analysis_type: str, corpus: str, filter_semtype, semtype = None) -> np.int64:
     docs = get_docs(corpus)
-    
         
     sys = get_sys_ann(analysis_type, r)
-    
     labels = get_labels(analysis_type, corpus, filter_semtype, semtype)
     
     sys2 = list()
     s2 = list()
     
     for n in range(len(docs)):
-        
+
         if analysis_type != 'cui':
             s1 = list(sys.loc[sys.case == docs[n][0]].itertuples(index=False))
             sys1 = label_vector(docs[n][1], s1, labels)
             sys2.append(list(sys1))
-
         else:
             s = sys.loc[sys.case == docs[n][0]]['label'].tolist()
             x = [1 if x in s else 0 for x in labels]
@@ -640,7 +635,6 @@ def vectorized_cooccurences(r: object, analysis_type: str, corpus: str, filter_s
             macro_recall = report['macro avg']['recall']    
             macro_f1 = report['macro avg']['f1-score']
             return ((0, 0, 0, 0), (macro_precision, macro_recall, macro_f1))
-        
         else:
             #TN, FP, FN, TP = confusion_matrix(a2, s2).ravel()
             TP, TN, FP, FN = confused(s2, a2)
@@ -761,18 +755,18 @@ def vectorized_complementarity(r: object, analysis_type: str, corpus: str, c: tu
     _, _, aFP, aFN = confused(np.array(s_a2), np.array(a2))
     _, _, bFP, bFN = confused(np.array(s_b2), np.array(a2))
 
-    #b_over_a, a_over_b, mean_comp = complementarity_measures(FN, FP, aFN, aFP, bFN, bFP)
-    b_over_a, a_over_b = complementarity_measures(FN, FP, aFN, aFP, bFN, bFP)
+    b_over_a, a_over_b, mean_comp = complementarity_measures(FN, FP, aFN, aFP, bFN, bFP)
+    #b_over_a, a_over_b = complementarity_measures(FN, FP, aFN, aFP, bFN, bFP)
     
     b_over_a['system'] = str((r.nameB, r.nameA))
     b_over_a['B'] = r.nameB    
     b_over_a['A'] = r.nameA
 
     a_over_b['system'] = str((r.nameA, r.nameB))
-    a_over_b['B'] = r.nameB    
-    a_over_b['A'] = r.nameA
+    a_over_b['B'] = r.nameA    
+    a_over_b['A'] = r.nameB
 
-    #mean_comp['system'] = 'mean_comp(' + r.nameA + ',' + r.nameB + ')'
+    mean_comp['system'] = 'mean_comp(' + r.nameA + ',' + r.nameB + ')'
 
     frames = [out, pd.DataFrame(b_over_a, index=[0])]
     out = pd.concat(frames, ignore_index=True, sort=False) 
@@ -780,8 +774,8 @@ def vectorized_complementarity(r: object, analysis_type: str, corpus: str, c: tu
     frames = [out, pd.DataFrame(a_over_b, index=[0])]
     out = pd.concat(frames, ignore_index=True, sort=False) 
 
-#    frames = [out, pd.DataFrame(mean_comp, index=[0])]
-#    out = pd.concat(frames, ignore_index=True, sort=False) 
+    frames = [out, pd.DataFrame(mean_comp, index=[0])]
+    out = pd.concat(frames, ignore_index=True, sort=False) 
 
     return out
         
@@ -789,19 +783,19 @@ def complementarity_measures(FN, FP, aFN, aFP, bFN, bFP):
     
     compA = 1 - (FN+FP)/(aFN + aFP)
     compB = 1 - (FN+FP)/(bFN + bFP)
-    #meanComp = s.mean([compA, compB])
+    meanComp = s.mean([compA, compB])
    
     r_compA = 1 - (FP)/(aFP)
     r_compB = 1 - (FP)/(bFP)
-    #meanR = s.mean([r_compA, r_compB])
+    meanR = s.mean([r_compA, r_compB])
     
     p_compA = 1 - (FN)/(aFN)
     p_compB = 1 - (FN)/(bFN)
-    #meanP = s.mean([p_compA, p_compB])
+    meanP = s.mean([p_compA, p_compB])
     
     f1_compA = 2*(p_compA*r_compA)/(p_compA + r_compA)
     f1_compB = 2*(p_compB*r_compB)/(p_compB + r_compB)
-    #meanF1 = s.mean([f1_compA, f1_compB])
+    meanF1 = s.mean([f1_compA, f1_compB])
     
     if FN > aFN:
         print('a bad n:', FN, aFN)
@@ -817,12 +811,12 @@ def complementarity_measures(FN, FP, aFN, aFP, bFN, bFP):
     b_over_a = {'test': 'COMP(A, B)', 'max_prop_error_reduction': compA, 'p': p_compA, 'r': r_compA, 'F1-score': f1_compA}
     a_over_b = {'test': 'COMP(B, A)', 'max_prop_error_reduction': compB, 'p': p_compB, 'r': r_compB, 'F1-score': f1_compB}
 
-    #mean_complementarity = {'test': 'mean(COMP(B, A),COMP(A, B))', 'max_prop_error_reduction': meanComp, 'mean p': meanP, 'mean r': meanR, 'mean F1-score': meanF1}
+    mean_complementarity = {'test': 'mean(COMP(B, A),COMP(A, B))', 'max_prop_error_reduction': meanComp, 'mean p': meanP, 'mean r': meanR, 'mean F1-score': meanF1}
 
-    return b_over_a, a_over_b #, mean_complementarity
+    return b_over_a, a_over_b, mean_complementarity
 
 
-@ft.lru_cache(maxsize=None)
+#@ft.lru_cache(maxsize=None)
 def cm_dict(ref_only: int, system_only: int, ref_system_match: int, system_n: int, ref_n: int) -> dict:
     """
     Generate dictionary of confusion matrix params and measures
@@ -900,36 +894,36 @@ def geometric_mean(metrics):
 # https://github.com/sousanunes/confidence_intervals.git
 
 def normal_approximation_binomial_confidence_interval(s, n, confidence_level=.95):
-	'''Computes the binomial confidence interval of the probability of a success s, 
-	based on the sample of n observations. The normal approximation is used,
-	appropriate when n is equal to or greater than 30 observations.
-	The confidence level is between 0 and 1, with default 0.95.
-	Returns [p_estimate, interval_range, lower_bound, upper_bound].
-	For reference, see Section 5.2 of Tom Mitchel's "Machine Learning" book.'''
+    '''Computes the binomial confidence interval of the probability of a success s, 
+    based on the sample of n observations. The normal approximation is used,
+    appropriate when n is equal to or greater than 30 observations.
+    The confidence level is between 0 and 1, with default 0.95.
+    Returns [p_estimate, interval_range, lower_bound, upper_bound].
+    For reference, see Section 5.2 of Tom Mitchel's "Machine Learning" book.'''
 
-	p_estimate = (1.0 * s) / n
+    p_estimate = (1.0 * s) / n
 
-	interval_range = norm.interval(confidence_level)[1] * np.sqrt( (p_estimate * (1-p_estimate))/n )
+    interval_range = norm.interval(confidence_level)[1] * np.sqrt( (p_estimate * (1-p_estimate))/n )
 
-	return p_estimate, interval_range, p_estimate - interval_range, p_estimate + interval_range
+    return p_estimate, interval_range, p_estimate - interval_range, p_estimate + interval_range
 
 
 def f1_score_confidence_interval(r, p, dr, dp):
-	'''Computes the confidence interval for the F1-score measure of classification performance
-	based on the values of recall (r), precision (p), and their respective confidence
-	interval ranges, or absolute uncertainty, about the recall (dr) and the precision (dp).
-	Disclaimer: I derived the formula myself based on f(r,p) = 2rp / (r+p).
-	Nobody has revised my computation. Feedback appreciated!'''
+    '''Computes the confidence interval for the F1-score measure of classification performance
+    based on the values of recall (r), precision (p), and their respective confidence
+    interval ranges, or absolute uncertainty, about the recall (dr) and the precision (dp).
+    Disclaimer: I derived the formula myself based on f(r,p) = 2rp / (r+p).
+    Nobody has revised my computation. Feedback appreciated!'''
 
-	f1_score = (2.0 * r * p) / (r + p)
+    f1_score = (2.0 * r * p) / (r + p)
 
-	left_side = np.abs( (2.0 * r * p) / (r + p) )
+    left_side = np.abs( (2.0 * r * p) / (r + p) )
 
-	right_side = np.sqrt( np.power(dr/r, 2.0) + np.power(dp/p, 2.0) + ((np.power(dr, 2.0)+np.power(dp, 2.0)) / np.power(r + p, 2.0)) )
+    right_side = np.sqrt( np.power(dr/r, 2.0) + np.power(dp/p, 2.0) + ((np.power(dr, 2.0)+np.power(dp, 2.0)) / np.power(r + p, 2.0)) )
 
-	interval_range = left_side * right_side
+    interval_range = left_side * right_side
 
-	return f1_score, interval_range, f1_score - interval_range, f1_score + interval_range
+    return f1_score, interval_range, f1_score - interval_range, f1_score + interval_range
 
 
 def generate_metrics(analysis_type: str, corpus: str, filter_semtype, semtype = None):
@@ -1004,13 +998,12 @@ def generate_metrics(analysis_type: str, corpus: str, filter_semtype, semtype = 
         print("total elapsed time:", elapsed) 
 
 
-#@ft.lru_cache(maxsize=None)
+@ft.lru_cache(maxsize=None)
 def get_sys_data(system: str, analysis_type: str, corpus: str, filter_semtype, semtype = None) -> pd.DataFrame:
    
     _, data = get_metric_data(analysis_type, corpus)
     
-    #out = data[data['system'] == system].copy()
-    out = data[data['system'] == system]
+    out = data.loc[data.system == system]
     
     if filter_semtype:
         st = SemanticTypes([semtype], corpus).get_system_type(system)
@@ -1023,21 +1016,16 @@ def get_sys_data(system: str, analysis_type: str, corpus: str, filter_semtype, s
         
     else:
         if filter_semtype:
-            #out = out[out['semtypes'].isin(st)].copy()
-            out = out[out['semtypes'].isin(st)]
+            out = out.loc[out.semtypes.isin(st)]
             
         else:
-            #out = out[out['system']== system].copy()
-            out = out[out['system']== system]
+            out = out.loc[out.system== system]
             
         if system == 'quick_umls':
-            out = out[(out.score.astype(float) >= 0.8) & (out["type"] == 'concept_jaccard_score_False')]
-            # fix for leading space on semantic type field
-            #out = out.apply(lambda x: x.str.strip() if x.dtype == "object" else x) 
-            out['semtypes'] = out['semtypes'].str.strip()
+            out = out.loc[(out.score.astype(float) >= 0.8) & ((out.type == 'concept_jaccard_score_False')|(out.type=='concept'))]
         
         if system == 'metamap':
-            out = out[out.score.abs().astype(int) >= 800]
+            out = out.loc[out.score.abs().astype(int) >= 800]
             
         if 'entity' in analysis_type:
             cols_to_keep = ['begin', 'end', 'note_id', 'system']
@@ -1047,8 +1035,7 @@ def get_sys_data(system: str, analysis_type: str, corpus: str, filter_semtype, s
             cols_to_keep = ['begin', 'end', 'cui', 'note_id', 'system']
             
         if analysis_type in ['cui','full']:
-            #out = out[out['cui'] != "RxNorm=["]
-            out = out[out['cui'].str.startswith("C") == True]
+            out = out.loc[out.cui.str.startswith("C") == True]
 
         out = out[cols_to_keep]
     
@@ -1139,7 +1126,7 @@ def vote(df, systems):
     
     return out  
 
-#@ft.lru_cache(maxsize=None)
+@ft.lru_cache(maxsize=None)
 def process_sentence(pt, sentence, analysis_type, corpus, filter_semtype, semtype = None):
 
     """
@@ -1374,10 +1361,10 @@ def get_docs(corpus):
     if corpus == 'ray_test':
         corpus = 'fairview'
         
-    sql = 'select distinct note_id, sofa from sofas where corpus = %(corpus)s order by note_id'
+    sql = 'select distinct note_id, len_doc from sofas where corpus = %(corpus)s order by note_id'
     df = pd.read_sql(sql, params={"corpus":corpus}, con=engine)
     df.drop_duplicates()
-    df['len_doc'] = df['sofa'].apply(len)
+    #df['len_doc'] = df['sofa'].apply(len)
     
     subset = df[['note_id', 'len_doc']]
     docs = [tuple(x) for x in subset.to_numpy()]
@@ -1405,7 +1392,7 @@ def get_ref_ann(analysis_type, corpus, filter_semtype, semtype = None):
     ann = ann.rename(index=str, columns={"start": "begin", "file": "case"})
     
     if filter_semtype:
-        ann = ann[ann['semtype'].isin(semtype)]
+        ann = ann.loc[ann.semtype.isin(semtype)]
     
     ann = set_labels(analysis_type, ann)
         
@@ -1664,7 +1651,7 @@ def get_merge_data(boolean_expression: str, analysis_type: str, corpus: str, run
         return results.system_merges
 
 
-@ft.lru_cache(maxsize=None)
+#@ft.lru_cache(maxsize=None)
 def get_reference_vector(analysis_type, corpus, filter_semtype, semtype = None):
     ref_ann = get_ref_ann(analysis_type, corpus, filter_semtype, semtype)
 
@@ -1779,7 +1766,7 @@ def majority_vote(systems, analysis_type, corpus, run_type, filter_semtype, semt
         metrics = pd.DataFrame()
         for semtype in semtypes:
             test = get_valid_systems(systems, semtype)
-            print('SYSYEMS FOR SEMTYPE', semtype, 'ARE', test)G
+            print('SYSYEMS FOR SEMTYPE', semtype, 'ARE', test)
             
             if run_type == 'overlap' and len(test) > 1:
                 ref = get_reference_vector(analysis_type, corpus, filter_semtype, semtype)
@@ -1861,11 +1848,11 @@ def get_ensemble_pairs(systems=['biomedicus', 'clamp', 'ctakes', 'metamap', 'qui
         operators = ['&', '|']
 
         # parse out into all paired combos for comparison
-        test = [r for r in results if sum([r.count('|'), r.count('&')]) < len(systems) - 1]
+        test = [r for r in results if sum([r.count('|'), r.count('&')]) < len(systems)-1]
         out = list(combinations(test, 2))
         #expressions = [o for i in range(len(systems) - 2) for j in range(len(systems) - 2)  if i + j < len(systems) - 1 for o in out if n_operators(o[0], o[1], i, j, operators) and overlap(o[0], o[1], operators) == 0]
 
-        return [o for i in range(len(systems) - 1) for j in range(len(systems) - 1) if i + j < len(systems) - 1 
+        return [o for i in range(len(systems)) for j in range(len(systems)) if i + j < len(systems)  
                 for o in out if n_operators(o[0], o[1], i, j, operators) and overlap(o[0], o[1], operators) == 0]
 
 
@@ -1965,8 +1952,44 @@ def main():
                         r.sysA = ad_hoc_sys(c[0], analysis_type, corpus, False, semtype) # c[0]
                         r.sysB = ad_hoc_sys(c[1], analysis_type, corpus, False, semtype) # c[1]
 
+                        # --> get standard metrics
+                    
+                        print('(' + c[0] + '&' + c[1] + ')')
+                        print('(' + c[0] + '|' + c[1] + ')')
+
+                        statement = '(' + c[0] + '&' + c[1] + ')'
+
+                        and_ = ad_hoc_sys(statement, analysis_type, corpus, True, semtype)
+
+                        and_['merge'] = statement
+                        n = statement.count('&') + statement.count('|') + 1 
+                        and_['n_terms'] = n
+
+                        statement = '(' + c[0] + '|' + c[1] + ')'
+
+                        or_ = ad_hoc_sys(statement, analysis_type, corpus, True, semtype)
+
+                        or_['merge'] = statement
+                        n = statement.count('&') + statement.count('|') + 1 
+                        or_['n_terms'] = n
+
+                        # --> end staandard metrics
+
+
                         out = vectorized_complementarity(r, analysis_type, corpus, c, filter_semtype, semtype)
                         out['semgroup'] = semtype
+
+                        out['precision_and'] = and_['precision']
+                        out['recall_and'] = and_['recall']
+                        out['F1_and'] = and_['F1']
+                        out['merge_and'] = and_['merge']
+                        
+                        out['precision_or'] = or_['precision']
+                        out['recall_or'] = or_['recall']
+                        out['F1_or'] = or_['F1']
+                        out['merge_or'] = or_['merge']
+                        out['nterms'] = n
+
                         frames = [df, out]
                         df = pd.concat(frames, ignore_index=True, sort=False) 
 
@@ -1984,8 +2007,45 @@ def main():
 
                     r.sysA = ad_hoc_sys(c[0], analysis_type, corpus) # c[0]
                     r.sysB = ad_hoc_sys(c[1], analysis_type, corpus) # c[1]
+
+                    # --> get standard metrics
                     
+                    print('(' + c[0] + '&' + c[1] + ')')
+                    print('(' + c[0] + '|' + c[1] + ')')
+
+                    statement = '(' + c[0] + '&' + c[1] + ')'
+
+                    and_ = ad_hoc_sys(statement, analysis_type, corpus, True)
+
+                    and_['merge'] = statement
+                    n = statement.count('&') + statement.count('|') + 1 
+                    and_['n_terms'] = n
+
+                    statement = '(' + c[0] + '|' + c[1] + ')'
+
+                    or_ = ad_hoc_sys(statement, analysis_type, corpus, True)
+
+                    or_['merge'] = statement
+                    n = statement.count('&') + statement.count('|') + 1 
+                    or_['n_terms'] = n
+
+                    # --> end staandard metrics
+
+
                     out = vectorized_complementarity(r, analysis_type, corpus, c, filter_semtype)
+                    
+                    out['precision_and'] = and_['precision']
+                    out['recall_and'] = and_['recall']
+                    out['F1_and'] = and_['F1']
+                    out['merge_and'] = and_['merge']
+                    
+                    out['precision_or'] = or_['precision']
+                    out['recall_or'] = or_['recall']
+                    out['F1_or'] = or_['F1']
+                    out['merge_or'] = or_['merge']
+                    out['nterms'] = n
+
+                   
                     out['semgroup'] = 'All groups'
                     frames = [df, out]
                     df = pd.concat(frames, ignore_index=True, sort=False) 
