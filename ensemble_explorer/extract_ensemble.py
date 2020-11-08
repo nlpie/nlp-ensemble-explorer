@@ -65,7 +65,7 @@ data_directory = '/mnt/DataResearch/DataStageData/ed_provider_notes/output/'
 #systems = ['biomedicus', 'clamp', 'metamap', 'quick_umls']
 #systems = ['biomedicus', 'quick_umls']
 #systems = ['biomedicus', 'ctakes', 'quick_umls']
-systems = ['biomedicus', 'clamp', 'ctakes', 'metamap','quick_umls']
+systems = ['biomedicus', 'clamp', 'ctakes', 'metamap']
 #systems = ['biomedicus', 'clamp']
 #systems = ['ctakes', 'quick_umls', 'biomedicus', 'metamap']
 #systems = ['biomedicus', 'metamap']
@@ -94,11 +94,12 @@ table_name = ref_data(corpus)
 
 # STEP-(6B): ENTER DETAILS FOR ACCESSING SYSTEM ANNOTATION DATA
 
+# TODO: snarf up file automatically
 def sys_data(corpus, analysis_type):
     if analysis_type == 'entity':
         return 'analytical_'+corpus+'.csv' # OPTIONS include 'analytical_cui_mipacq_concepts.csv' OR 'analytical_cui_i2b2_concepts.csv' 
     elif analysis_type in ('cui', 'full'):
-        return 'analytical_'+corpus+'_cui.csv' # OPTIONS include 'analytical_cui_mipacq_concepts.csv' OR 'analytical_cui_i2b2_concepts.csv' 
+        return 'analytical_fairview_cui_filtered_by_semtype_1604765933.197354.csv' # 'analytical_'+corpus+'_cui.csv' # OPTIONS include 'analytical_cui_mipacq_concepts.csv' OR 'analytical_cui_i2b2_concepts.csv' 
         
 system_annotation = sys_data(corpus, analysis_type)
 

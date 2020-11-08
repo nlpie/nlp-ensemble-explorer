@@ -252,7 +252,7 @@ def main():
                 init_cassis(system, typesystem)
                 
                 # parse directory
-                directory_to_parse = '/mnt/DataResearch/DataStageData/ed_provider_notes/' +  system + '_out/' 
+                directory_to_parse = '/mnt/DataResearch/DataStageData/ed_provider_notes/in_process/' +  system + '_out/' 
                
                 print(directory_to_parse)
 
