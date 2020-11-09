@@ -36,13 +36,8 @@ existing = pd.read_sql(sql, params={"contact_date":contact_date}, con=engine)
 
 # get patient metadata
 db = pd.read_stata("/mnt/DataResearch/DataStageData/analytical_tables/Final_Clean_QI_Database_31_Oct_2020.DTA")
-
-
 cols_to_keep = ["race", "age_cat", "MDM_LINK_ID"]
 db = db[cols_to_keep]
-
-# kosher for research
-#patients=patients.loc[patients.research_op_out.isna()]
 
 # features imputed in R w/ indicator
 features=pd.read_csv("/mnt/DataResearch/DataStageData/ed_provider_notes/methods_paper/analysis/imputed_features_with_indicator.csv")
@@ -52,6 +47,7 @@ features = features.merge(db, on="MDM_LINK_ID")
 
 # get list of comorbidities
 # instead, match on Elixhauser?
+comorb=[p for p in features.columns if 'COMORB' in p]
 features['comorb']=features[comorb].values.tolist()
 
 df=features #[cols_to_keep]
@@ -60,15 +56,15 @@ df['dependent_var']=df['true_died'].values.tolist()
 # use for case/control pairwise match
 df['match_on']=df[['male', 'age_cat', 'race']].values.tolist()
 
-test = df.drop_duplicates(subset='MDM_LINK_ID')
-testing=test[['MDM_LINK_ID', 'race', 'age_cat', 'male', 'dependent_var', 'match_on', 'comorb', 'true_died']]
-testing = testing.drop_duplicates(subset='MDM_LINK_ID')
+df = df.drop_duplicates(subset='MDM_LINK_ID')
+df = df[['MDM_LINK_ID', 'race', 'age_cat', 'male', 'dependent_var', 'match_on', 'comorb', 'true_died']]
+df = df.drop_duplicates(subset='MDM_LINK_ID')
 
 independent=[] # list of dictionaries of indeependent variable  
 target=[] # list of dictionaries for dependent variable
 v = dict() # dictionary of features
 # get list of dictionaries for independent and dependent variables
-for t in testing.to_dict(orient="records"):
+for t in df.to_dict(orient="records"):
     v[t['MDM_LINK_ID']] = {}
     print(t['MDM_LINK_ID'])
     v[t['MDM_LINK_ID']] = t
@@ -94,13 +90,9 @@ for train_index, test_index in lpo.split(X):
     else:
         alive.append(list(X_test)[0]['MDM_LINK_ID'])
 
-    # if list(X_test)[0]['true_died'] != list(X_test)[1]['true_died']:
-        # if list(X_test)[0]['match_on'] == list(X_test)[1]['match_on']:
-            # pass #print (list(X_test)[0]['PAT_ID'], list(X_test)[1]['PAT_ID'])
-
 print("done with getting dead/alive") 
 # get random matching pair for training, etc.
-# TODO: Add discrete and NLP features
+# TODO: Add NLP features
 already_matched=[] # for control/alive only use once
 i=0
 for d in list(set(dead)):
@@ -109,7 +101,7 @@ for d in list(set(dead)):
      while unpaired:
         a = rnd.choice(list(set(alive)))
         if v[d]['match_on']==v[a]['match_on'] and a not in already_matched:
-            print(i, 'match!', v[d], v[d]['match_on'], v[a], v[a]['match_on'])
+            print(i, 'match!', d, v[d]['match_on'], a, v[a]['match_on'])
             already_matched.append(a)
             unpaired = False
      i += 1
