@@ -91,14 +91,18 @@ for train_index, test_index in lpo.split(X):
         alive.append(list(X_test)[0]['MDM_LINK_ID'])
 
 print("done with getting dead/alive") 
+
 # get random matching pair for training, etc.
+
 # TODO: Add NLP features
 already_matched=[] # for control/alive only use once
 i=0
-for d in list(set(dead)):
+# iterate through randomly shuffled list of deaths
+for d in list(set(rnd.shuffle(dead))):
      unpaired = True
      
      while unpaired:
+        # random pick of live patient 
         a = rnd.choice(list(set(alive)))
         if v[d]['match_on']==v[a]['match_on'] and a not in already_matched:
             print(i, 'match!', d, v[d]['match_on'], a, v[a]['match_on'])
