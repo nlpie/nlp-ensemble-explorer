@@ -18,6 +18,9 @@ engine = create_engine('postgresql+psycopg2://gsilver1:nej123@d0pconcourse001/co
 
 # this is already done in nlp_features_tests.py
 # date for training, development
+
+# test data set
+
 contact_date="2020-09-01"
 sql = """
 select a."CONTACT_DATE", a."MDM_LINK_ID", "PAT_ID", "NOTE_ID"
@@ -34,72 +37,50 @@ existing = pd.read_sql(sql, params={"contact_date":contact_date}, con=engine)
 # get patient metadata
 db = pd.read_stata("/mnt/DataResearch/DataStageData/analytical_tables/Final_Clean_QI_Database_31_Oct_2020.DTA")
 
+
 cols_to_keep = ["race", "age_cat", "MDM_LINK_ID"]
 db = db[cols_to_keep]
 
 # kosher for research
 #patients=patients.loc[patients.research_op_out.isna()]
 
-# output from nlp_features_tests.py
-features=pd.read_csv("/mnt/DataResearch/DataStageData/ed_provider_notes/methods_paper/analysis/discrete_features_01sep2020.csv")
-
+# features imputed in R w/ indicator
+features=pd.read_csv("/mnt/DataResearch/DataStageData/ed_provider_notes/methods_paper/analysis/imputed_features_with_indicator.csv")
 features = features.merge(db, on="MDM_LINK_ID")
 
-#cols_to_keep=['male', 'true_died', 'age_cat', 'MDM_LINK_ID', 'race'] 
+# TODO: merge with NLP features
+
 # get list of comorbidities
-
-
-# instead, maatch on Elixhauser?
+# instead, match on Elixhauser?
 features['comorb']=features[comorb].values.tolist()
 
-#cols_to_keep = cols_to_keep + ['Vent', 'ICU', 'Inpatient', 'ED_Revisit', 'comorb'] 
-
-p=features #[cols_to_keep]
-# impute values
-values = {'male': 0, 'race': 'Declined'}
-df=p.fillna(value=values)
-
-#df=p.merge(existing,how="right", on='MDM_LINK_ID', indicator=True)
-#df = df.loc[df._merge=="both"]
-
+df=features #[cols_to_keep]
 df['dependent_var']=df['true_died'].values.tolist()
-#df['match_on']=df[['race', 'male', 'age_cat']].values.tolist()
 
-# use for case/control pair match
+# use for case/control pairwise match
 df['match_on']=df[['male', 'age_cat', 'race']].values.tolist()
 
 test = df.drop_duplicates(subset='MDM_LINK_ID')
 testing=test[['MDM_LINK_ID', 'race', 'age_cat', 'male', 'dependent_var', 'match_on', 'comorb', 'true_died']]
-
 testing = testing.drop_duplicates(subset='MDM_LINK_ID')
-l=[]
-target=[]
-v = dict()
+
+independent=[] # list of dictionaries of indeependent variable  
+target=[] # list of dictionaries for dependent variable
+v = dict() # dictionary of features
 # get list of dictionaries for independent and dependent variables
 for t in testing.to_dict(orient="records"):
     v[t['MDM_LINK_ID']] = {}
     print(t['MDM_LINK_ID'])
     v[t['MDM_LINK_ID']] = t
-    l.append(t)
+    independent.append(t)
     target.append(t['true_died'])
 
-  
-X=np.array(l)
+ 
+X=np.array(independent)
 y=np.array(target)
 
 lpo = LeavePOut(2)
-# print(lpo)
-# for train_index, test_index in lpo.split(X):
-    # print("TRAIN:", train_index, "TEST:", test_index)
-    # X_train, X_test = X[train_index], X[test_index]
-    # y_train, y_test = y[train_index], y[test_index]
-    
-    # if list(X_test)[0]['true_died'] != list(X_test)[1]['true_died']:
-        # if list(X_test)[0]['match_on'] == list(X_test)[1]['match_on']:
-            # print (list(X_test)[0]['PAT_ID'], list(X_test)[1]['PAT_ID'])
-
 # get set of dead and alive
-
 dead=list()
 alive=list()
 
@@ -118,8 +99,9 @@ for train_index, test_index in lpo.split(X):
             # pass #print (list(X_test)[0]['PAT_ID'], list(X_test)[1]['PAT_ID'])
 
 print("done with getting dead/alive") 
-# get random matching pair
-already_matched=[]
+# get random matching pair for training, etc.
+# TODO: Add discrete and NLP features
+already_matched=[] # for control/alive only use once
 i=0
 for d in list(set(dead)):
      unpaired = True
@@ -127,7 +109,7 @@ for d in list(set(dead)):
      while unpaired:
         a = rnd.choice(list(set(alive)))
         if v[d]['match_on']==v[a]['match_on'] and a not in already_matched:
-            print(i, 'match!', v[d]['match_on'], v[a]['match_on'])
+            print(i, 'match!', v[d], v[d]['match_on'], v[a], v[a]['match_on'])
             already_matched.append(a)
             unpaired = False
      i += 1
