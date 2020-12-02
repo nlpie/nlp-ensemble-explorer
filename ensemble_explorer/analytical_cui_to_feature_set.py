@@ -14,26 +14,73 @@ data_directory = '/mnt/DataResearch/DataStageData/ed_provider_notes/output/'
 # ---> Create disorders set for downstream usage !!!!!!!!
 
 # TODO: find way to snarf up and concat all files
-set_a = pd.read_csv(data_directory + 'ensemble_1602080938.27128.csv')
-set_b = pd.read_csv(data_directory + 'ensemble_1603122042.536138.csv')
-set_c = pd.read_csv(data_directory + 'ensemble_1603552742.547878.csv')
-set_d = pd.read_csv(data_directory + 'ensemble_1604158456.683375.csv')
-set_e = pd.read_csv(data_directory + 'ensemble_1604766378.92923.csv')
+set_a = pd.read_csv(data_directory + 'ensembled_data/ensemble_1602080938.27128.csv')
+set_b = pd.read_csv(data_directory + 'ensembled_data/ensemble_1603122042.536138.csv')
+set_c = pd.read_csv(data_directory + 'ensembled_data/ensemble_1603552742.547878.csv')
+set_d = pd.read_csv(data_directory + 'ensembled_data/ensemble_1604158456.683375.csv')
+set_e = pd.read_csv(data_directory + 'ensembled_data/ensemble_1604766378.92923.csv')
+set_f = pd.read_csv(data_directory + 'ensembled_data/ensemble_1606082178.965203.csv')
 
-df = pd.concat([set_a, set_b, set_c, set_d, set_e])
+df = pd.concat([set_a, set_b, set_c, set_d, set_e, set_f])
+
+# cohort 2
+ 
+set_a = pd.read_csv(data_directory + 'cohort_2/24aug2020/ensemble_1605924301.195449.csv')
+set_b = pd.read_csv(data_directory + 'cohort_2/24aug2020/ensemble_1605924356.595452.csv')
+set_c = pd.read_csv(data_directory + 'cohort_2/24aug2020/ensemble_1605925199.585139.csv')
+set_d = pd.read_csv(data_directory + 'cohort_2/24aug2020/ensemble_1605926133.778776.csv')
+
+df = pd.concat([set_a, set_b, set_c, set_d, df])
+
+set_a = pd.read_csv(data_directory + 'cohort_2/13nov2020/ensemble_1606061052.073672.csv')
+set_b = pd.read_csv(data_directory + 'cohort_2/13nov2020/ensemble_1606061105.626346.csv')
+set_c = pd.read_csv(data_directory + 'cohort_2/13nov2020/ensemble_1606061155.929239.csv')
+
+df = pd.concat([set_a, set_b, set_c, df])
 
 sql = """
 
 SELECT "MDM_LINK_ID", "CONTACT_DATE", "NOTE_ID"::int, "NOTE_STATUS"
 	FROM public.ed_provider_notes
 	WHERE "NOTE_STATUS" not in ('Incomplete', 'Shared') 
-    and cohort = 1 and opt_out is NULL
+    and (cohort = 1 or (cohort = 2 and pui = 1))
 
 """
 
 notes = pd.read_sql(sql, engine)
 
-out = df.merge(notes, how='inner', left_on='case', right_on= 'NOTE_ID')
+notes = df.merge(notes, how='inner', left_on='case', right_on= 'NOTE_ID')
+
+# Final_Clean_QI_Database_23_Nov_2020 PUI_VER2_Database_22_Nov_2020
+db = pd.read_stata("/mnt/DataResearch/DataStageData/analytical_tables/Final_Clean_QI_Database_23_Nov_2020.dta")
+
+# tested elsewhere
+db = db[db['Covid_Positive_Date'].notna()]
+#db = db[db['Covid_Result_Time'].notna()]
+
+db['covid_positive_date']= pd.to_datetime(db.Covid_Positive_Date-(24*3600000)*3653, unit='ms')
+#db['covid_result_time']= pd.to_datetime(db.Covid_Result_Time, unit='ms') - pd.Timedelta((24*36000)*3653, unit='ms') 
+
+notes = notes.merge(db[['covid_positive_date', 'MDM_LINK_ID']], on="MDM_LINK_ID")
+#notes = notes.merge(db[['covid_result_time','mdm_link_id']], left_on="MDM_LINK_ID", right_on="mdm_link_id")
+
+notes['contact_date'] = pd.to_datetime(notes['CONTACT_DATE'])
+notes['date_diff']=(notes.covid_positive_date - notes.contact_date).astype('timedelta64[D]').abs()
+
+#notes['date_diff']=(notes.covid_result_time - notes.contact_date).astype('timedelta64[D]')
+
+# criteria as per CJT TODO: new criterion
+#notes = notes.loc[(notes.date_diff>=-14) & (notes.date_diff<=0)]
+
+# get min date_diff
+# get min date_diff
+test = notes.loc[notes.groupby('MDM_LINK_ID').date_diff.idxmin()]
+test = test[['MDM_LINK_ID', 'date_diff']]
+out = test.merge(notes, on=['MDM_LINK_ID', 'date_diff'])
+# --->
+
+#out = notes
+
 out = out[[ 'cui', 'polarity', 'MDM_LINK_ID', 'CONTACT_DATE', 'NOTE_ID', 'NOTE_STATUS']] #.sort_values(by=['MDM_LINK_ID', 'CONTACT_DATE', 'NOTE_ID'])
 
 out = out.drop_duplicates(['cui', 'NOTE_ID', 'polarity'])
@@ -47,7 +94,6 @@ cuis = pd.read_sql(sql, engine)
 cuis = cuis.drop_duplicates(subset='cui')
 
 disorders = out.merge(cuis, how='inner',on='cui').drop_duplicates(['cui','polarity','NOTE_ID'])#.sort_values(by=['MDM_LINK_ID', 'CONTACT_DATE', 'NOTE_ID', 'concept'])
-
 
 #print(disorders)
 now = datetime.now()
@@ -122,7 +168,7 @@ for p in patients:
             # print(p,test[p][c])
 
 # empty df?                 
-out = pd.DataFrame(columns=cuis)
+#out = pd.DataFrame(columns=cuis)
 
         
         
@@ -227,27 +273,31 @@ b = pd.concat({
               axis=0).unstack()
 b.columns = b.columns.get_level_values(1)
 
-sql = """
-select "MDM_LINK_ID", max("CONTACT_DATE") as encounter_date 
-from ed_provider_notes 
-where cohort = 1
-group by "MDM_LINK_ID"
-"""
+# sql = """
+# select "MDM_LINK_ID", max("CONTACT_DATE") as encounter_date 
+# from ed_provider_notes 
+# where cohort = 1
+# group by "MDM_LINK_ID"
+# """
 
-max_encounter = pd.read_sql(sql, engine)
-max_encounter['encounter_date'] = pd.to_datetime(max_encounter['encounter_date'])
-max_encounter = max_encounter.set_index(["MDM_LINK_ID"])
-
-b=b.join(max_encounter)
+# max_encounter = pd.read_sql(sql, engine)
+# max_encounter['encounter_date'] = pd.to_datetime(max_encounter['encounter_date'])
+# max_encounter = max_encounter.set_index(["MDM_LINK_ID"])
+out['encounter_date'] = pd.to_datetime(out['CONTACT_DATE'])
+out = out[['encounter_date', 'MDM_LINK_ID']]
+id_ = out.drop_duplicates(subset='MDM_LINK_ID')
+id_ = id_.set_index(["MDM_LINK_ID"])
+b=b.join(id_)
 
 fname='nlp_umls_concept_features_'+str(dt)                
 b.to_csv('/mnt/DataResearch/DataStageData/ed_provider_notes/output/'+fname+'.csv', index=True)
 b.to_stata('/mnt/DataResearch/DataStageData/ed_provider_notes/output/nlp_umls_concept_features_'+str(dt)+'.dta',version=117)
 
-dta_fname = fname + '.dta'
+dta_path = '/mnt/DataResearch/DataStageData/ed_provider_notes/output/'
+dta_fname = dta_path + fname + '.dta'
 !cp $dta_fname '/mnt/DataResearch/DataStageData/nlp_umls_concept_features.dta'
 os.chdir('/mnt/DataResearch/DataStageData/ed_provider_notes/output/')
-os.rename(dta_fname, '/mnt/DataResearch/DataStageData/archive/ed_provider_notes/umls_features/' + dta_fname)
+os.rename(dta_fname, '/mnt/DataResearch/DataStageData/archive/ed_provider_notes/umls_features/' + fname + '.dta')
 os.rename(fname+'.csv', '/mnt/DataResearch/DataStageData/archive/ed_provider_notes/umls_features/' + fname+'.csv')
 
 """

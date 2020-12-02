@@ -442,7 +442,8 @@ def main():
                         annotations = get_df(view.select(t), attribs)
                         
                         # write to database
-                        annotations.to_sql(table_name, engine, if_exists="append") 
+                        if len(annotations) > 0:
+                            annotations.to_sql(table_name, engine, if_exists="append") 
                         
     # write out annotations for non-cui tables
     else:

@@ -61,7 +61,7 @@ from datetime import datetime
 
 engine = create_engine('postgresql+psycopg2://gsilver1:nej123@d0pconcourse001/covid-19') 
 now=datetime.now().date().strftime('%Y%m%d')
-#now="20201016"
+now="20201205"
 data_folder = "/mnt/DataResearch/DataStageData/archive/source/"
 data_out = Path('/mnt/DataResearch/DataStageData/ed_provider_notes/in_process/data_in')
 
@@ -83,7 +83,7 @@ for fname in glob.glob(data_folder + "CV_PATIENTS_ALL*.txt"):
         patients = pd.read_csv(fname, dtype=str, engine='python', sep="~\|~")
 
 # 3. set cohort
-df = patients[['COHORT_1', 'COHORT_2', 'MDM_LINK_ID', "PAT_ID",  "NOTE_ID",  "NOTE_STATUS"]].merge(notes, how='inner', on='MDM_LINK_ID').drop_duplicates()
+df = patients[['COHORT_1', 'COHORT_2', 'MDM_LINK_ID']].merge(notes, how='inner', on='MDM_LINK_ID').drop_duplicates()
 df['cohort'] = np.where(df['COHORT_1'] == "1", 1, 2)
 
 # 4. compare to what has been processed
@@ -100,6 +100,9 @@ new_data = new_data[(new_data['_merge']=='left_only') & (new_data["NOTE_STATUS"]
 new_data[['SOURCE_SYSTEM', 'PAT_ID', 'MDM_LINK_ID', 'PAT_ENC_CSN_ID',
        'CONTACT_DATE', 'ENC_TYPE', 'NOTE_ID', 'NOTE_TYPE', 'NOTE_STATUS',
        'PROV_NAME', 'PROV_TYPE', 'UPD_AUT_LOCAL_DTTM', 'cohort']].to_sql('ed_provider_notes', engine, index=False, if_exists='append')
+
+# update PUI status
+update_pui()
 
 # 6. set archive folder with date
 arch_folder = data_folder + 'archive/ed_provider_notes/processed_' + str(now)  
@@ -120,13 +123,16 @@ columns = ['COHORT_1', 'COHORT_2', 'MDM_LINK_ID', 'SOURCE_SYSTEM', 'PAT_ID',
            'PAT_ENC_CSN_ID', 'CONTACT_DATE', 'ENC_TYPE', 'NOTE_ID', 'NOTE_TYPE',
            'NOTE_STATUS', 'PROV_NAME', 'PROV_TYPE', 'UPD_AUT_LOCAL_DTTM', 'NOTE_TEXT']
 
-files = new_data[(new_data.cohort==1) & (new_data['_merge']=='left_only') & (new_data["NOTE_STATUS"].isin(['Signed','Addendum']))]
+files = new_data[((new_data.cohort==1) | ((new_data.cohort==2) & (new_data.pui==1))) & (new_data['_merge']=='left_only') & (new_data["NOTE_STATUS"].isin(['Signed','Addendum']))]
 files = files[columns]
 
 files = files.apply(lambda x: x.str.replace('[^\x00-\x7F]',''))
 
 pat_ids = set(files['PAT_ID'].to_list())
 files = files.sort_values(by=['PAT_ID', 'NOTE_ID', 'CONTACT_DATE'])
+
+# add text notes -> SQL
+files[['NOTE_ID', 'NOTE_TEXT']].to_sql('notes', engine, index=False, if_exists='append')
 
 # 7. write new notes to txt file for processing
 for p in pat_ids:
@@ -156,10 +162,89 @@ for p in pat_ids:
 folders = ['biomedicus_out', 'clamp_out', 'ctakes_out', 'metamap']
 for folder in folders:
     !rm -rf '/mnt/DataResearch/DataStageData/ed_provider_notes/'$folder
+    
+    
+# # ------------> old PUIs
+
+# # 1 get set to process
+# sql = """
+# SELECT "PAT_ID",  "NOTE_ID",  "NOTE_STATUS"
+	# FROM public.ed_provider_notes  
+    # where cohort = 2 and pui = 1 and date_added <= '2020-09-23'
+# """
+# existing = pd.read_sql(sql, engine)
+
+# new_data = df.merge(existing, how="inner", on=["PAT_ID",  "NOTE_ID",  "NOTE_STATUS"], indicator=True)
+# #new_data = new_data[(new_data['_merge']=='left_only') & (new_data["NOTE_STATUS"].isin(['Signed','Addendum']))]
+
+# # get new file set
+# columns = ['COHORT_1', 'COHORT_2', 'MDM_LINK_ID', 'SOURCE_SYSTEM', 'PAT_ID',
+           # 'PAT_ENC_CSN_ID', 'CONTACT_DATE', 'ENC_TYPE', 'NOTE_ID', 'NOTE_TYPE',
+           # 'NOTE_STATUS', 'PROV_NAME', 'PROV_TYPE', 'UPD_AUT_LOCAL_DTTM', 'NOTE_TEXT']
+
+# files = new_data[(new_data["NOTE_STATUS"].isin(['Signed','Addendum']))]
+
+# files = files[columns]
+
+# files = files.apply(lambda x: x.str.replace('[^\x00-\x7F]',''))
 
 
 
 
+# pat_ids = set(files['PAT_ID'].to_list())
+# files = files.sort_values(by=['PAT_ID', 'NOTE_ID', 'CONTACT_DATE'])
+
+# data_out = Path('/mnt/DataResearch/DataStageData/ed_provider_notes/in_process/cohort_2/data_in')
+# # 7. write new notes to txt file for processing
+# for p in pat_ids:
+    # #print(p)
+    # note_ids = files['NOTE_ID'][files['PAT_ID']==p].copy()  
+    # for n in set(note_ids.tolist()):
+        # #print(n)
+        # fname = p + '_' + n + '.txt'
+        # print(fname)    
+        # #lines = df['LINE'][df['NOTE_ID']==n].copy()
+        # #/lines = lines.sort_values()  
+        # f = open(data_out / fname, "a")  # append mode
+        # #for l in lines.tolist():
+            # #print(l)
+        # #txt = df['NOTE_TEXT'][(df['PAT_ID']==p) & (df['NOTE_ID']==n) & (df['LINE']==l)].copy()
+        # txt = files['NOTE_TEXT'][(files['PAT_ID']==p) & (files['NOTE_ID']==n)].copy()
+            # #fn.write()
+            # #print(txt.values[0]) 
+            # #print(re.sub(' +', ' ', txt.values[0]))
+        # f.write(re.sub(' +', ' ', str(txt.values[0])))
+            # #f.write(txt.values[0])
+        # f.close()
+        
+def update_pui()
+    db = pd.read_stata("/mnt/DataResearch/DataStageData/PUI_ED_Cohort_T0.dta")
+     
+    sql = """
+    SELECT "MDM_LINK_ID"
+        FROM public.ed_provider_notes
+        where cohort = 2 
+    """
+
+    pat = pd.read_sql(sql, con=engine)
+
+    files = pat.merge(db, left_on="MDM_LINK_ID", right_on="mdm_link_id")
+
+    files['file_name']=files['PAT_ID']+'_'+files['NOTE_ID'] + 'txt.xmi'
+
+    notes = files['file_name'].to_list()
+
+    # update pui
+    mdm=set(files.drop_duplicates(subset="MDM_LINK_ID")['MDM_LINK_ID'].to_list())
+
+    sql = text("""
+                UPDATE public.ed_provider_notes 
+                SET pui=1 
+                WHERE cohort = 2 and "MDM_LINK_ID" in :mdm 
+                """)
+                   
+
+    conn.execute(sql, mdm=tuple(mdm))
 
 
 

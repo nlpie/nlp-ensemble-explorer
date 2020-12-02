@@ -3,12 +3,24 @@ import numpy as np
 from sqlalchemy.engine import create_engine
 from datetime import datetime
 from pathlib import Path
-import time
-
+import time, io
 
 data_folder = Path("/mnt/DataResearch/DataStageData/ed_provider_notes/output/")
 start = time.time()
 
+# https://towardsdatascience.com/optimizing-pandas-read-sql-for-postgres-f31cd7f707ab
+def read_sql_inmem_uncompressed(query, db_engine):
+    copy_sql = "COPY ({query}) TO STDOUT WITH CSV {head}".format(
+       query=query, head="HEADER"
+    )
+    conn = db_engine.raw_connection()
+    cur = conn.cursor() 
+    store = io.StringIO()
+    cur.copy_expert(copy_sql, store)
+    store.seek(0)
+    df = pd.read_csv(store)
+    return df
+    
 def get_systems_set(sql, engine):
 
     df = pd.read_sql(sql, engine)
@@ -25,63 +37,31 @@ def get_sem_types(engine):
     return pd.read_sql(sql, engine)
     
     
-def get_data(engine):
+def get_data(engine, cohort):
 
     st = get_sem_types(engine)
     
     mask = [st for st in list(set(st.tui.tolist()))]
-
-    ### ------> qumls
-    
-    sql = """
-      SELECT q.begin, q.end, null as concept, q.cui, q.similarity as score, q.semtypes as semtype, split_part(q.note_id, '_', 2) as note_id, q.type, q.system, 0 as polarity 
-      FROM qumls q inner join
-      (select max(date_added) as da from qumls) as md on md.da = q.date_added;
-      """
-    
-    sql = """
-    SELECT q.begin, q.end, null as concept, q.cui, q.similarity as score, q.semtypes as semtype, split_part(q.note_id, '_', 2) as note_id, q.type, q.system, 0 as polarity 
-    FROM qumls q;
-    """
-    
-    # qumls = get_systems_set(sql, engine)
-    # qumls = qumls[qumls.semtype.isin(mask)]
     
     ### ------> b9
-
     sql = """
-    select u.begin, u.end, null as concept, u.cui, u.confidence::float as score, u.tui as semtype, u.note_id, u.type, u.system, -1 as polarity 
-    from "bio_biomedicus_UmlsConcept" u left join "bio_biomedicus_Negated" n
-        on u.begin = n.begin and u.end = n.end and u.note_id = n.note_id inner join
-        (select max(date_added) as da from ed_provider_notes where cohort = 1) as md on md.da <= u.date_added and md.da = n.date_added
-        where n.begin is not null and n.end is not null and n.note_id is not null
-
-    union distinct
-
-    select u.begin, u.end, null as concept, u.cui, u.confidence::float as score, u.tui as semtype, u.note_id, u.type, u.system, 1 as polarity 
-    from "bio_biomedicus_UmlsConcept" u left join "bio_biomedicus_Negated" n
-        on u.begin = n.begin and u.end = n.end and u.note_id = n.note_id inner join
-        (select max(date_added) as da from ed_provider_notes where cohort = 1) as md on md.da <= u.date_added 
-        where n.begin is null and n.end is null and n.note_id is null;
-
-    """
+    select distinct u.begin, u.end, null as concept, u.cui, u.confidence::float as score, u.tui as semtype, u.note_id, u.type, u.system, -1 as polarity 
+    from (select "NOTE_ID"  from ed_provider_notes where date_added >= '2020-11-14' and cohort = 1 order by "NOTE_ID" limit 4000) as md join
+        "bio_biomedicus_UmlsConcept" u on md."NOTE_ID" = u.note_id join
+        "bio_biomedicus_Negated" n on u.begin = n.begin and u.end = n.end and u.note_id = n.note_id
+	where n.begin is not null and n.end is not null and n.note_id is not null
     
-    # sql = """
-    # select u.begin, u.end, null as concept, u.cui, u.confidence::float as score, u.tui as semtype, u.note_id, u.type, u.system, -1 as polarity 
-    # from "bio_biomedicus_UmlsConcept" u left join "bio_biomedicus_Negated" n
-        # on u.begin = n.begin and u.end = n.end and u.note_id = n.note_id 
-        # where n.begin is not null and n.end is not null and n.note_id is not null
+    union distinct
+    
+    select distinct u.begin, u.end, null as concept, u.cui, u.confidence::float as score, u.tui as semtype, u.note_id, u.type, u.system, 1 as polarity 
+    from (select "NOTE_ID" from ed_provider_notes where date_added >= '2020-11-14' and cohort = 1 order by "NOTE_ID"   limit 4000) as md join
+       "bio_biomedicus_UmlsConcept" u on md."NOTE_ID" = u.note_id left join
+       "bio_biomedicus_Negated" n on u.begin = n.begin and u.end = n.end and u.note_id = n.note_id 
+    where n.begin is null and n.end is null and n.note_id is null
+    """
 
-    # union distinct
-
-    # select u.begin, u.end, null as concept, u.cui, u.confidence::float as score, u.tui as semtype, u.note_id, u.type, u.system, 1 as polarity 
-    # from "bio_biomedicus_UmlsConcept" u left join "bio_biomedicus_Negated" n
-        # on u.begin = n.begin and u.end = n.end and u.note_id = n.note_id  
-        # where n.begin is null and n.end is null and n.note_id is null;
-
-    # """
-
-    b9 = get_systems_set(sql, engine)
+    #b9 = pd.read_sql(sql, params={"notes":tuple(notes)}, con=engine)
+    b9 = read_sql_inmem_uncompressed(sql, engine)
     b9 = b9[b9.semtype.isin(mask)]
 
     print('b9!')
@@ -89,42 +69,24 @@ def get_data(engine):
     ### ------> clamp
     
     mask = [st.split(',')  for st in list(set(st.clamp_name.tolist()))][0]
-
+    
     sql = """
-    select u.begin, u.end, u.concept, u.cui, u.concept_prob::float as score, "u"."semanticTag" as semtype, u.note_id, u.type, u.system, -1 as polarity 
-    from "cla_edu_ClampNameEntityUIMA" u left join "cla_edu_ClampRelationUIMA" r
-        on u.begin = r.begin and u.end = r.end and u.note_id = r.note_id inner join
-        (select max(date_added) as da from ed_provider_notes where cohort = 1) as md on md.da <= u.date_added and md.da = r.date_added
-        where u.assertion = 'absent' and r.begin is not null and r.end is not null and r.note_id is not null
-        
-
+    select distinct u.begin, u.end, u.concept, u.cui, u.concept_prob::float as score, "u"."semanticTag" as semtype, u.note_id, u.type, u.system, -1 as polarity 
+    from (select "NOTE_ID" from ed_provider_notes where date_added >= '2020-11-14' and cohort = 1 order by "NOTE_ID"   limit 4000) as md join 
+        "cla_edu_ClampNameEntityUIMA" u on md."NOTE_ID" = u.note_id join 
+        "cla_edu_ClampRelationUIMA" r on u.begin = r.begin and u.end = r.end and u.note_id = r.note_id 
+	where u.assertion = 'absent' and r.begin is not null and r.end is not null and r.note_id is not null
+     
     union distinct
 
-    select u.begin, u.end, u.concept, u.cui, u.concept_prob::float as score, "u"."semanticTag" as semtype, u.note_id, u.type, u.system, 1 as polarity 
-    from "cla_edu_ClampNameEntityUIMA" u left join "cla_edu_ClampRelationUIMA" r
-        on u.begin = r.begin and u.end = r.end and u.note_id = r.note_id inner join
-        (select max(date_added) as da from ed_provider_notes where cohort = 1) as md on md.da <= u.date_added
-        where (u.assertion = 'present' or u.assertion is null) and r.begin is null and r.end is null and r.note_id is null;
-
+    select distinct u.begin, u.end, u.concept, u.cui, u.concept_prob::float as score, "u"."semanticTag" as semtype, u.note_id, u.type, u.system, 1 as polarity 
+    from (select "NOTE_ID" from ed_provider_notes where date_added >= '2020-11-14' and cohort = 1 order by "NOTE_ID"   limit 4000) as md join 
+        "cla_edu_ClampNameEntityUIMA" u on md."NOTE_ID" = u.note_id left join 
+        "cla_edu_ClampRelationUIMA" r on u.begin = r.begin and u.end = r.end and u.note_id = r.note_id 
+	where (u.assertion = 'present' or u.assertion is null) and r.begin is null and r.end is null and r.note_id is null
     """
     
-    # sql = """
-    # select u.begin, u.end, u.concept, u.cui, u.concept_prob::float as score, "u"."semanticTag" as semtype, u.note_id, u.type, u.system, -1 as polarity 
-    # from "cla_edu_ClampNameEntityUIMA" u left join "cla_edu_ClampRelationUIMA" r
-        # on u.begin = r.begin and u.end = r.end and u.note_id = r.note_id 
-        # where u.assertion = 'absent' and r.begin is not null and r.end is not null and r.note_id is not null
-        
-
-    # union 
-
-    # select u.begin, u.end, u.concept, u.cui, u.concept_prob::float as score, "u"."semanticTag" as semtype, u.note_id, u.type, u.system, 1 as polarity 
-    # from "cla_edu_ClampNameEntityUIMA" u left join "cla_edu_ClampRelationUIMA" r
-        # on u.begin = r.begin and u.end = r.end and u.note_id = r.note_id 
-        # where (u.assertion = 'present' or u.assertion is null) and r.begin is null and r.end is null and r.note_id is null;
-
-    # """
-    
-    clamp = get_systems_set(sql, engine)
+    clamp = read_sql_inmem_uncompressed(sql, engine)
     clamp = clamp[clamp.semtype.isin(mask)]
     
     print('clamp!')
@@ -132,125 +94,20 @@ def get_data(engine):
     
     mask = [st.split(',')  for st in list(set(st.ctakes_name.tolist()))][0]
 
-    # sql = """
-    # select  "begin", "end", concept, cui, null as score, split_part(type, '.', 7) as semtype, note_id, 'ctakes_mentions' as type,  system, polarity  
-    # from "cta_org_AnatomicalSiteMention" inner join
-        # (select max(date_added) as da from "cta_org_AnatomicalSiteMention") as md on md.da = date_added 
-
-    # union distinct 
-
-    # select begin, "end", concept, cui, null as score, split_part(type, '.', 7) as semtype, note_id, 'ctakes_mentions' as type,  system, polarity 
-    # from "cta_org_DiseaseDisorderMention" inner join
-        # (select max(date_added) as da from "cta_org_DiseaseDisorderMention") as md on md.da = date_added 
-
-    # union distinct 
-
-    # select begin, "end", concept, cui, null as score, split_part(type, '.', 7) as semtype, note_id, 'ctakes_mentions' as type,  system, polarity 
-    # from "cta_org_MedicationMention" inner join
-        # (select max(date_added) as da from "cta_org_MedicationMention") as md on md.da = date_added 
-
-    # union distinct 
-
-    # select begin, "end", concept, cui, null as score, split_part(type, '.', 7) as semtype, note_id, 'ctakes_mentions' as type,  system, polarity 
-    # from "cta_org_ProcedureMention" inner join
-        # (select max(date_added) as da from "cta_org_ProcedureMention") as md on md.da = date_added 
-
-    # union distinct 
-
-    # select begin, "end", concept, cui, null as score, split_part(type, '.', 7) as semtype, note_id, 'ctakes_mentions' as type,  system, polarity 
-    # from "cta_org_SignSymptomMention" inner join
-        # (select max(date_added) as da from "cta_org_SignSymptomMention") as md on md.da = date_added ;
-
-    # """
-    
-    
-    
-    # sql = """
-    # select  "begin", "end", concept, cui, null as score, split_part(type, '.', 7) as semtype, note_id, 'ctakes_mentions' as type,  system, polarity  
-    # from "cta_org_AnatomicalSiteMention"  
-
-    # union distinct 
-
-    # select begin, "end", concept, cui, null as score, split_part(type, '.', 7) as semtype, note_id, 'ctakes_mentions' as type,  system, polarity 
-    # from "cta_org_DiseaseDisorderMention" 
-
-    # union distinct 
-
-    # select begin, "end", concept, cui, null as score, split_part(type, '.', 7) as semtype, note_id, 'ctakes_mentions' as type,  system, polarity 
-    # from "cta_org_MedicationMention" 
-
-    # union distinct 
-
-    # select begin, "end", concept, cui, null as score, split_part(type, '.', 7) as semtype, note_id, 'ctakes_mentions' as type,  system, polarity 
-    # from "cta_org_ProcedureMention" 
-
-    # union distinct 
-
-    # select begin, "end", concept, cui, null as score, split_part(type, '.', 7) as semtype, note_id, 'ctakes_mentions' as type,  system, polarity 
-    # from "cta_org_SignSymptomMention"  ;
-
-    # """
-    
-    # sql = """
-    # select  "begin", "end", concept, cui, null as score, split_part(type, '.', 7) as semtype, note_id, 'ctakes_mentions' as type,  system, polarity  
-    # from "cta_org_AnatomicalSiteMention" inner join
-        # (select max(date_added) as da from "cta_org_AnatomicalSiteMention") as md on md.da = date_added 
-
-    # union distinct 
-
-    # select begin, "end", concept, cui, null as score, split_part(type, '.', 7) as semtype, note_id, 'ctakes_mentions' as type,  system, polarity 
-    # from "cta_org_DiseaseDisorderMention" inner join
-        # (select max(date_added) as da from "cta_org_DiseaseDisorderMention") as md on md.da = date_added 
-
-    # union distinct 
-
-    # select begin, "end", concept, cui, null as score, split_part(type, '.', 7) as semtype, note_id, 'ctakes_mentions' as type,  system, polarity 
-    # from "cta_org_MedicationMention" inner join
-        # (select max(date_added) as da from "cta_org_MedicationMention") as md on md.da = date_added 
-
-    # union distinct 
-
-    # select begin, "end", concept, cui, null as score, split_part(type, '.', 7) as semtype, note_id, 'ctakes_mentions' as type,  system, polarity 
-    # from "cta_org_ProcedureMention" inner join
-        # (select max(date_added) as da from "cta_org_ProcedureMention") as md on md.da = date_added 
-
-    # union distinct 
-
-    # select begin, "end", concept, cui, null as score, split_part(type, '.', 7) as semtype, note_id, 'ctakes_mentions' as type,  system, polarity 
-    # from "cta_org_SignSymptomMention" inner join
-        # (select max(date_added) as da from "cta_org_SignSymptomMention") as md on md.da = date_added ;
-
-    # """
-    
-    
     sql = """
-     
-
-    select begin, "end", concept, cui, null as score, split_part(type, '.', 7) as semtype, note_id, 'ctakes_mentions' as type,  system, polarity 
-    from "cta_org_DiseaseDisorderMention" inner join
-        (select max(date_added) as da from ed_provider_notes where cohort = 1) as md on md.da <= date_added 
-
-    union distinct 
-
-
-    select begin, "end", concept, cui, null as score, split_part(type, '.', 7) as semtype, note_id, 'ctakes_mentions' as type,  system, polarity 
-    from "cta_org_SignSymptomMention" inner join
-        (select max(date_added) as da from ed_provider_notes where cohort = 1) as md on md.da <= date_added ;
-
-    """
-    # sql = """
-   
-    # select begin, "end", concept, cui, null as score, split_part(type, '.', 7) as semtype, note_id, 'ctakes_mentions' as type,  system, polarity 
-    # from "cta_org_DiseaseDisorderMention"  
-
-    # union
-
-    # select begin, "end", concept, cui, null as score, split_part(type, '.', 7) as semtype, note_id, 'ctakes_mentions' as type,  system, polarity 
-    # from "cta_org_SignSymptomMention"  ;
-
-    # """
     
-    ctakes = get_systems_set(sql, engine)
+    select distinct begin, "end", concept, cui, null as score, split_part(type, '.', 7) as semtype, note_id, 'ctakes_mentions' as type,  system, polarity 
+    from (select "NOTE_ID" from ed_provider_notes where date_added >= '2020-11-14' and cohort = 1 order by "NOTE_ID"   limit 4000) as md join 
+        "cta_org_DiseaseDisorderMention" u on md."NOTE_ID" = u.note_id 
+
+	union distinct 
+
+    select distinct begin, "end", concept, cui, null as score, split_part(type, '.', 7) as semtype, note_id, 'ctakes_mentions' as type,  system, polarity 
+    from (select "NOTE_ID" from ed_provider_notes where date_added >= '2020-11-14' and cohort = 1 order by "NOTE_ID"   limit 4000) as md join 
+        "cta_org_SignSymptomMention" u on md."NOTE_ID" = u.note_id
+    """
+    
+    ctakes = read_sql_inmem_uncompressed(sql, engine)
     
     print('ctakes!')
     ### ------> mm
@@ -258,38 +115,21 @@ def get_data(engine):
     mask = [st for st in list(set(st.abbreviation.tolist()))]
 
     sql = """
-    select c.begin, c.end, c.preferred as concept, c.cui, ABS(c.score::int) as score, "c"."semanticTypes" as semtype, c.note_id, c.type, c.system, -1 as polarity 
-    from "met_org_Candidate" c left join "met_org_Negation" n
-        on c.begin = n.begin and c.end = n.end and c.note_id = n.note_id inner join
-        (select max(date_added) as da from ed_provider_notes where cohort = 1) as md on md.da <= c.date_added and md.da = n.date_added
-        where n.begin is not null and n.end is not null and n.note_id is not null
+    select distinct c.begin, c.end, c.preferred as concept, c.cui, ABS(c.score::int) as score, "c"."semanticTypes" as semtype, c.note_id, c.type, c.system, -1 as polarity 
+    from (select "NOTE_ID" from ed_provider_notes where date_added >= '2020-11-14' and cohort = 1 order by "NOTE_ID"   limit 4000) as md join  
+        "met_org_Candidate" c on md."NOTE_ID" = c.note_id join 
+        "met_org_Negation" n on c.begin = n.begin and c.end = n.end and c.note_id = n.note_id 
+	where n.begin is not null and n.end is not null and n.note_id is not null
 
     union distinct
 
-    select c.begin, c.end, c.preferred as concept, c.cui, ABS(c.score::int) as score, "c"."semanticTypes" as semtype, c.note_id, c.type, c.system, 1 as polarity 
-    from "met_org_Candidate" c left join "met_org_Negation" n
-        on c.begin = n.begin and c.end = n.end and c.note_id = n.note_id inner join
-        (select max(date_added) as da from ed_provider_notes where cohort = 1) as md on md.da <= c.date_added
-        where n.begin is null and n.end is null and n.note_id is null;
-
+    select distinct c.begin, c.end, c.preferred as concept, c.cui, ABS(c.score::int) as score, "c"."semanticTypes" as semtype, c.note_id, c.type, c.system, 1 as polarity 
+    from (select "NOTE_ID" from ed_provider_notes where date_added >= '2020-11-14' and cohort = 1 order by "NOTE_ID"   limit 4000) as md join  
+        "met_org_Candidate" c on md."NOTE_ID" = c.note_id left join 
+        "met_org_Negation" n on c.begin = n.begin and c.end = n.end and c.note_id = n.note_id 
+    where n.begin is null and n.end is null and n.note_id is null
     """
-    
-    # sql = """
-    # select c.begin, c.end, c.preferred as concept, c.cui, ABS(c.score::int) as score, "c"."semanticTypes" as semtype, c.note_id, c.type, c.system, -1 as polarity 
-    # from "met_org_Candidate" c left join "met_org_Negation" n
-        # on c.begin = n.begin and c.end = n.end and c.note_id = n.note_id 
-        # where n.begin is not null and n.end is not null and n.note_id is not null
-
-    # union distinct
-
-    # select c.begin, c.end, c.preferred as concept, c.cui, ABS(c.score::int) as score, "c"."semanticTypes" as semtype, c.note_id, c.type, c.system, 1 as polarity 
-    # from "met_org_Candidate" c left join "met_org_Negation" n
-        # on c.begin = n.begin and c.end = n.end and c.note_id = n.note_id 
-        # where n.begin is null and n.end is null and n.note_id is null;
-
-    # """
-    
-    mm = get_systems_set(sql, engine)
+    mm = read_sql_inmem_uncompressed(sql, engine)
     # explode list like string into multiple rows
     mm =  mm.assign(semtype=mm.semtype.str.split(" ")).explode('semtype')
     mm = mm[mm.semtype.isin(mask)]
@@ -333,6 +173,7 @@ def disambiguate(arg):
 
     out = pd.concat(data, axis=0)
    
+    del out['length']
     # randomly reindex to keep random row when dropping duplicates: https://gist.github.com/cadrev/6b91985a1660f26c2742
     out.reset_index(inplace=True)
     out = out.reindex(np.random.permutation(out.index))
@@ -341,7 +182,7 @@ def disambiguate(arg):
 
 def update_opt_out(engine):
     
-    patients = pd.read_stata("/mnt/DataResearch/DataStageData/analytical_tables/Final_Clean_QI_Database__4_Oct_2020.dta")
+    patients = pd.read_stata("/mnt/DataResearch/DataStageData/analytical_tables/Final_Clean_QI_Database_27_Nov_2020.dta")
 
     notes=pd.read_csv("/mnt/DataResearch/DataStageData/CV_PATIENT_ED_PROVIDER_NOTES.txt", dtype=str, engine='python', sep="~\|~")
     
@@ -365,58 +206,36 @@ def main():
     engine = create_engine('postgresql+psycopg2://gsilver1:nej123@d0pconcourse001/covid-19')
     print('BEGIN')
     
+    # set which cohort to extract
+    #cohort = 2 
+    
+    # set opt out status
+    update_opt_out(engine)
+    
     #GENERATE analytical table
     analytical_cui = pd.DataFrame()
 
     # TODO get cases method
-    # sql = """SELECT  distinct note_id
-            # FROM public."bio_biomedicus_UmlsConcept" inner join
-            # (select max(date_added) as da from public."bio_biomedicus_UmlsConcept") as md on md.da = date_added;"""
-            
-    # sql = """select  distinct note_id
-            # from "bio_biomedicus_UmlsConcept" b9 inner join "ed_provider_notes" ed
-			# on b9.note_id = ed."NOTE_ID"
-			# where  "NOTE_STATUS" != 'Incomplete';"""
-            
-    sql = """select distinct "NOTE_ID" 
-              from ed_provider_notes inner join
-              (select max(date_added) as da from ed_provider_notes) as md
-              on md.da = date_added
-              where cohort = 1 and opt_out is null;
-              
-          """
+    
+    sql = """
+            select distinct "NOTE_ID" 
+              from ed_provider_notes
+              where date_added>='2020-11-14' 
+              order by "NOTE_ID";
+         """
     notes = pd.read_sql(sql, engine)
-    
-    # patients = pd.read_stata("/mnt/DataResearch/DataStageData/analytical_tables/Final_Clean_QI_Database__3_Oct_2020.dta")
-    
-    # df = notes.merge(patients, on = "MDM_LINK_ID")
-    
-    # df = df.loc[df.research_op_out.isnull()]
     
     cases = set(notes['NOTE_ID'].tolist())
     
-    #__, b9, clamp, ctakes, mm = get_data(engine)
-    b9, clamp, ctakes, mm = get_data(engine)
+    b9, clamp, ctakes, mm = get_data(engine, cohort)
     
     i = 0
     for case in cases:
         print(case, i)
         i += 1
     
-        ### ------> qumls
-        '''
-        test = df[df['note_id'] == case].copy()
-        print('qumls', len(test))
-
-        if len(test) > 0:
-            frames = [ analytical_cui, disambiguate(test) ]
-            analytical_cui = pd.concat(frames, ignore_index=True, sort=False) 
-        
-        #print(analytical_cui[0:1], analytical_cui.columns)
-        '''
-        
         ### ------>  b9
-        test = b9[b9['note_id'] == case].copy()
+        test = b9[b9['note_id'] == int(case)].copy()
         print('b9 umls', len(test))
 
         if len(test) > 0:
@@ -424,21 +243,21 @@ def main():
             analytical_cui = pd.concat(frames, ignore_index=True, sort=False)  
 
         ### ------>  clamp
-        test = clamp[clamp['note_id'] == case].copy()
+        test = clamp[clamp['note_id'] == int(case)].copy()
         print('clamp', len(test))
         if len(test) > 0:
             frames = [ analytical_cui, disambiguate(test) ]
             analytical_cui = pd.concat(frames, ignore_index=True, sort=False) 
 
         ### ------>  ctakes
-        test = ctakes[ctakes['note_id'] == case].copy()
+        test = ctakes[ctakes['note_id'] == int(case)].copy()
         print('ctakes mentions', len(test))
         if len(test) > 0:
             frames = [ analytical_cui, disambiguate(test) ]
             analytical_cui = pd.concat(frames, ignore_index=True, sort=False) 
 
         ### ------>  mm
-        test = mm[mm['note_id'] == case].copy()
+        test = mm[mm['note_id'] == int(case)].copy()
         print('mm candidate', len(test))
         if len(test) > 0:
             frames = [ analytical_cui, disambiguate(test) ]
@@ -446,62 +265,18 @@ def main():
         
     now = datetime.now()
     timestamp = datetime.timestamp(now)
-    analytical_cui = analytical_cui.drop('length', 1)
     
     return analytical_cui
     
     
 if __name__ == '__main__':
-    #%prun main()
+    #%prun main()
     analytical_cui = main()
     elapsed = (time.time() - start)
     print('fini!', 'time:', elapsed)
     now = datetime.now()
     timestamp = datetime.timestamp(now)
     #analytical_cui.ro_sql("analytical_cui" + timestamp, engine)
-    file = 'analytical_fairview_cui_filtered_by_semtype_' + str(timestamp) +'.csv'
+    file = 'analytical_fairview_cui_filtered_by_semtype_test_' + str(timestamp) +'.csv'
     
     analytical_cui.to_csv(data_folder / file)
-    
-# fill in null concepts:
-'''
-data='/mnt/DataResearch/DataStageData/ed_provider_notes/output/'
-file='analytical_fairview_cui_filtered_by_semtype_1603120549.778849.csv'
-df = pd.read_csv(data+file)
-sg = df
-
-# sg.loc[sg.semtype.isin(['T020', 'T190', 'T047', 'T033', 'T184', 
-# 'problem', 
-# 'DiseaseDisorderMention','SignSymptomMention', 
-# 'acab',
-# 'anab'
-# 'dsyn'
-# 'fndg'
-# 'sosy'])].drop_duplicates(subset='cui') 
-
-# test=sg.loc[sg.semtype.isin(['T020', 'T190', 'T047', 'T033', 'T184', 'problem', 'DiseaseDisorderMention','SignSymptomMention', 'acab',
-# 'anab'
-# 'dsyn'
-# 'fndg'
-# 'sosy'])].drop_duplicates(subset='cui')[['concept', 'cui','system']]
-
-test=sg.loc[sg.semtype.isin(['T047', 'T033', 'T184', 'T046',
-'DiseaseDisorderMention','SignSymptomMention',
-'problem', 
-'dsyn'
-'fndg'
-'sosy',
-'patf'])].drop_duplicates(subset='cui')[['concept', 'cui','system']]
-
-test.sort_values('system', ascending=False).drop_duplicates(subset='cui')
-t =test.sort_values('system', ascending=False).drop_duplicates(subset='cui')
-
-mrconso=pd.read_sql('select "CUI", "STR", "ISPREF" from public."MRCONSO"', con=engine)
-concepts=mrconso.loc[mrconso.ISPREF=='Y'].drop_duplicates(subset='CUI')[['CUI', 'STR']]
-
-u=t.merge(concepts, left_on='cui', right_on='CUI')
-u['concept'] = np.where(u.concept.isnull(), u.STR, u.concept)
-df.merge(u, left_on='cui', right_on='CUI')
-
-df.merge(u, left_on='cui', right_on='CUI')['concept_y']
-'''

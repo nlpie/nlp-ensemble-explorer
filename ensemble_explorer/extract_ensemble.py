@@ -27,8 +27,8 @@ import functools as ft
 import glob, os, sys   
 import operator as op
 import shelve
-import ipywidgets as widgets
-from ipywidgets import interact, interact_manual
+#import ipywidgets as widgets
+#from ipywidgets import interact, interact_manual
 from pathlib import Path
 from itertools import combinations, product, permutations
 from sqlalchemy.engine import create_engine
@@ -41,7 +41,7 @@ from pythonds.trees.binaryTree import BinaryTree
 from collections import defaultdict
 import collections
 from typing import List, Set, Tuple 
-from sklearn.metrics import classification_report, confusion_matrix
+#from sklearn.metrics import classification_report, confusion_matrix
 from scipy import sparse
 
 
@@ -99,7 +99,7 @@ def sys_data(corpus, analysis_type):
     if analysis_type == 'entity':
         return 'analytical_'+corpus+'.csv' # OPTIONS include 'analytical_cui_mipacq_concepts.csv' OR 'analytical_cui_i2b2_concepts.csv' 
     elif analysis_type in ('cui', 'full'):
-        return 'analytical_fairview_cui_filtered_by_semtype_1604765933.197354.csv' # 'analytical_'+corpus+'_cui.csv' # OPTIONS include 'analytical_cui_mipacq_concepts.csv' OR 'analytical_cui_i2b2_concepts.csv' 
+        return 'analytical_fairview_cui_filtered_by_semtype_test_1606061637.230739.csv' # 'analytical_'+corpus+'_cui.csv' # OPTIONS include 'analytical_cui_mipacq_concepts.csv' OR 'analytical_cui_i2b2_concepts.csv' 
         
 system_annotation = sys_data(corpus, analysis_type)
 
