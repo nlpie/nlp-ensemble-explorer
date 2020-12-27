@@ -1,7 +1,6 @@
 # Utilities for query expansion of terms:
 
-[Transform a list into JSONL format](https://github.com/nlpie/nlp-ensemble-explorer/blob/polarity/ensemble_explorer/scripts/query_expansion/
-symptoms_to_jsonl.py) 
+[Transform a list into JSONL format](https://github.com/nlpie/nlp-ensemble-explorer/blob/polarity/ensemble_explorer/scripts/query_expansion/symptoms_to_jsonl.py) 
 
 [Map a list of JSONL objects to UMLS](https://github.com/nlpie/nlp-ensemble-explorer/blob/polarity/ensemble_explorer/scripts/query_expansion/symtoms_to_umls.py)
 
