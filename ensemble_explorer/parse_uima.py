@@ -197,13 +197,11 @@ def get_dict(keys, sentence, d):
 
 def add_keys(df, system, t, u, corpus, fname):
 
-    pat_id = u.split('_')[0]
-    note_id = u.split('_')[1]
+    note_id = u
     
     df["system"] = system
     df["type"] = t
     df["note_id"] = note_id
-    df["pat_id"] = pat_id
     df["corpus"] = corpus
     df["filename"] = fname
     
@@ -227,10 +225,10 @@ def main():
     from cassis import load_typesystem, load_cas_from_xmi
 
     # connection string
-    engine = create_engine('postgresql+psycopg2://gsilver1:nej123@d0pconcourse001/covid-19')
+    #engine = create_engine('postgresql+psycopg2://gsilver1:nej123@d0pconcourse001/covid-19')
+    engine = create_engine('mysql+pymysql://gms:nej123@localhost/covid', pool_pre_ping=True, pool_size=20, max_overflow=30)
     systems = ["clamp", "metamap", "ctakes", "biomedicus"]
-    
-    corpora = ["fairview"]
+    corpora = ["mipacq"]
     parse_to_sql = True
     
     if parse_to_sql:
@@ -244,7 +242,7 @@ def main():
 
                 types, view_, output = annSys.get_system_type(system)
                 
-                dir_test = '/mnt/DataResearch/gsilver1/development/ensemble-explorer/system_annotations/typesystems/' + system + '/'
+                dir_test = '/Users/gms/development/nlp/nlpie/scripts/python/nlp-ensemble-explorer/system_annotations/typesystems/' + system + '/'
 
                 with open(dir_test + 'TypeSystem.xml', 'rb') as f:
                     typesystem = load_typesystem(f)
@@ -252,7 +250,7 @@ def main():
                 init_cassis(system, typesystem)
                 
                 # parse directory
-                directory_to_parse = '/mnt/DataResearch/DataStageData/ed_provider_notes/in_process/' +  system + '_out/' 
+                directory_to_parse = '/Users/gms/development/nlp/nlpie/data/ensembling-u01/mipacq/rerun-november-2019/' +  system + '_out/' 
                
                 print(directory_to_parse)
 
@@ -442,7 +440,8 @@ def main():
                         annotations = get_df(view.select(t), attribs)
                         
                         # write to database
-                        annotations.to_sql(table_name, engine, if_exists="append") 
+                        if len(annotations) > 0:
+                            annotations.to_sql(table_name, engine, if_exists="append") 
                         
     # write out annotations for non-cui tables
     else:

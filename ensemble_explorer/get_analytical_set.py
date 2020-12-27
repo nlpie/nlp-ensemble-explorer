@@ -6,7 +6,7 @@ from pathlib import Path
 import time
 
 
-data_folder = Path("/mnt/DataResearch/DataStageData/ed_provider_notes/output/")
+data_folder = Path("/Users/gms/Desktop/")
 start = time.time()
 
 def get_systems_set(sql, engine):
@@ -19,7 +19,7 @@ def get_sem_types(engine):
 
     # semantic types for filtering
     sql = """SELECT st.tui as tui, abbreviation, clamp_name, ctakes_name 
-            FROM semantic_groups sg join semantic_types st on sg.tui = st.tui 
+            FROM concepts.semantic_groups sg join concepts.semantic_types st on sg.tui = st.tui 
             where group_name = 'Disorders';"""
       
     return pd.read_sql(sql, engine)
@@ -50,20 +50,19 @@ def get_data(engine):
     ### ------> b9
 
     sql = """
-    select u.begin, u.end, null as concept, u.cui, u.confidence::float as score, u.tui as semtype, u.note_id, u.type, u.system, -1 as polarity 
-    from "bio_biomedicus_UmlsConcept" u left join "bio_biomedicus_Negated" n
-        on u.begin = n.begin and u.end = n.end and u.note_id = n.note_id inner join
-        (select max(date_added) as da from ed_provider_notes where cohort = 1) as md on md.da <= u.date_added and md.da = n.date_added
+ 
+    select u.begin, u.end, null as concept, u.cui, u.confidence as score, u.tui as semtype, u.note_id, u.type, u.system, -1 as polarity 
+    from bio_biomedicus_UmlsConcept u left join bio_biomedicus_Negated n
+        on u.begin = n.begin and u.end = n.end and u.note_id = n.note_id 
         where n.begin is not null and n.end is not null and n.note_id is not null
 
     union distinct
 
-    select u.begin, u.end, null as concept, u.cui, u.confidence::float as score, u.tui as semtype, u.note_id, u.type, u.system, 1 as polarity 
-    from "bio_biomedicus_UmlsConcept" u left join "bio_biomedicus_Negated" n
-        on u.begin = n.begin and u.end = n.end and u.note_id = n.note_id inner join
-        (select max(date_added) as da from ed_provider_notes where cohort = 1) as md on md.da <= u.date_added 
+    select u.begin, u.end, null as concept, u.cui, u.confidence as score, u.tui as semtype, u.note_id, u.type, u.system, 1 as polarity 
+    from bio_biomedicus_UmlsConcept u left join bio_biomedicus_Negated n
+        on u.begin = n.begin and u.end = n.end and u.note_id = n.note_id  
         where n.begin is null and n.end is null and n.note_id is null;
-
+   
     """
     
     # sql = """
@@ -91,21 +90,19 @@ def get_data(engine):
     mask = [st.split(',')  for st in list(set(st.clamp_name.tolist()))][0]
 
     sql = """
-    select u.begin, u.end, u.concept, u.cui, u.concept_prob::float as score, "u"."semanticTag" as semtype, u.note_id, u.type, u.system, -1 as polarity 
-    from "cla_edu_ClampNameEntityUIMA" u left join "cla_edu_ClampRelationUIMA" r
-        on u.begin = r.begin and u.end = r.end and u.note_id = r.note_id inner join
-        (select max(date_added) as da from ed_provider_notes where cohort = 1) as md on md.da <= u.date_added and md.da = r.date_added
+    select u.begin, u.end, u.concept, u.cui, u.concept_prob as score, u.semanticTag as semtype, u.note_id, u.type, u.system, -1 as polarity 
+    from cla_edu_ClampNameEntityUIMA u left join cla_edu_ClampRelationUIMA r
+        on u.begin = r.begin and u.end = r.end and u.note_id = r.note_id 
         where u.assertion = 'absent' and r.begin is not null and r.end is not null and r.note_id is not null
         
 
     union distinct
 
-    select u.begin, u.end, u.concept, u.cui, u.concept_prob::float as score, "u"."semanticTag" as semtype, u.note_id, u.type, u.system, 1 as polarity 
-    from "cla_edu_ClampNameEntityUIMA" u left join "cla_edu_ClampRelationUIMA" r
-        on u.begin = r.begin and u.end = r.end and u.note_id = r.note_id inner join
-        (select max(date_added) as da from ed_provider_notes where cohort = 1) as md on md.da <= u.date_added
+    select u.begin, u.end, u.concept, u.cui, u.concept_prob as score, u.semanticTag as semtype, u.note_id, u.type, u.system, 1 as polarity 
+    from cla_edu_ClampNameEntityUIMA u left join cla_edu_ClampRelationUIMA r
+        on u.begin = r.begin and u.end = r.end and u.note_id = r.note_id
         where (u.assertion = 'present' or u.assertion is null) and r.begin is null and r.end is null and r.note_id is null;
-
+    
     """
     
     # sql = """
@@ -226,17 +223,13 @@ def get_data(engine):
     sql = """
      
 
-    select begin, "end", concept, cui, null as score, split_part(type, '.', 7) as semtype, note_id, 'ctakes_mentions' as type,  system, polarity 
-    from "cta_org_DiseaseDisorderMention" inner join
-        (select max(date_added) as da from ed_provider_notes where cohort = 1) as md on md.da <= date_added 
+    select `begin`, `end`, concept, cui, null as score, 'cta_org_DiseaseDisorderMention' as `semtype`, note_id, 'ctakes_mentions' as `type`,  `system`, polarity
+    from cta_org_DiseaseDisorderMention
 
     union distinct 
 
-
-    select begin, "end", concept, cui, null as score, split_part(type, '.', 7) as semtype, note_id, 'ctakes_mentions' as type,  system, polarity 
-    from "cta_org_SignSymptomMention" inner join
-        (select max(date_added) as da from ed_provider_notes where cohort = 1) as md on md.da <= date_added ;
-
+    select `begin`, `end`, concept, cui, null as score, 'cta_org_SignSymptomMention' as `semtype`, note_id, 'ctakes_mentions' as `type`,  `system`, polarity 
+    from cta_org_SignSymptomMention
     """
     # sql = """
    
@@ -258,20 +251,19 @@ def get_data(engine):
     mask = [st for st in list(set(st.abbreviation.tolist()))]
 
     sql = """
-    select c.begin, c.end, c.preferred as concept, c.cui, ABS(c.score::int) as score, "c"."semanticTypes" as semtype, c.note_id, c.type, c.system, -1 as polarity 
-    from "met_org_Candidate" c left join "met_org_Negation" n
-        on c.begin = n.begin and c.end = n.end and c.note_id = n.note_id inner join
-        (select max(date_added) as da from ed_provider_notes where cohort = 1) as md on md.da <= c.date_added and md.da = n.date_added
+    select c.begin, c.end, c.preferred as concept, c.cui, ABS(c.score) as score, c.semanticTypes as semtype, c.note_id, c.type, c.system, -1 as polarity 
+    from met_org_Candidate c left join met_org_Negation n
+        on c.begin = n.begin and c.end = n.end and c.note_id = n.note_id 
         where n.begin is not null and n.end is not null and n.note_id is not null
 
     union distinct
 
-    select c.begin, c.end, c.preferred as concept, c.cui, ABS(c.score::int) as score, "c"."semanticTypes" as semtype, c.note_id, c.type, c.system, 1 as polarity 
-    from "met_org_Candidate" c left join "met_org_Negation" n
-        on c.begin = n.begin and c.end = n.end and c.note_id = n.note_id inner join
-        (select max(date_added) as da from ed_provider_notes where cohort = 1) as md on md.da <= c.date_added
+    select c.begin, c.end, c.preferred as concept, c.cui, ABS(c.score) as score, c.semanticTypes as semtype, c.note_id, c.type, c.system, 1 as polarity 
+    from met_org_Candidate c left join met_org_Negation n
+        on c.begin = n.begin and c.end = n.end and c.note_id = n.note_id 
         where n.begin is null and n.end is null and n.note_id is null;
 
+    
     """
     
     # sql = """
@@ -362,7 +354,9 @@ def update_opt_out(engine):
     conn.execute(sql, opt_out=tuple(opt_out))
     
 def main():
-    engine = create_engine('postgresql+psycopg2://gsilver1:nej123@d0pconcourse001/covid-19')
+    #engine = create_engine('postgresql+psycopg2://gsilver1:nej123@d0pconcourse001/covid-19')
+    engine = create_engine('mysql+pymysql://gms:nej123@localhost/covid', pool_pre_ping=True, pool_size=20, max_overflow=30)
+    
     print('BEGIN')
     
     #GENERATE analytical table
@@ -378,12 +372,8 @@ def main():
 			# on b9.note_id = ed."NOTE_ID"
 			# where  "NOTE_STATUS" != 'Incomplete';"""
             
-    sql = """select distinct "NOTE_ID" 
-              from ed_provider_notes inner join
-              (select max(date_added) as da from ed_provider_notes) as md
-              on md.da = date_added
-              where cohort = 1 and opt_out is null;
-              
+    sql = """select distinct note_id 
+             from bio_biomedicus_UmlsConcept 
           """
     notes = pd.read_sql(sql, engine)
     
@@ -393,7 +383,7 @@ def main():
     
     # df = df.loc[df.research_op_out.isnull()]
     
-    cases = set(notes['NOTE_ID'].tolist())
+    cases = set(notes['note_id'].tolist())
     
     #__, b9, clamp, ctakes, mm = get_data(engine)
     b9, clamp, ctakes, mm = get_data(engine)
@@ -420,33 +410,37 @@ def main():
         print('b9 umls', len(test))
 
         if len(test) > 0:
-            frames = [ analytical_cui, disambiguate(test) ]
+            #frames = [ analytical_cui, disambiguate(test) ]
+            frames = [ analytical_cui, test ]
             analytical_cui = pd.concat(frames, ignore_index=True, sort=False)  
 
         ### ------>  clamp
         test = clamp[clamp['note_id'] == case].copy()
         print('clamp', len(test))
         if len(test) > 0:
-            frames = [ analytical_cui, disambiguate(test) ]
+            #frames = [ analytical_cui, disambiguate(test) ]
+            frames = [ analytical_cui, test ]
             analytical_cui = pd.concat(frames, ignore_index=True, sort=False) 
 
         ### ------>  ctakes
         test = ctakes[ctakes['note_id'] == case].copy()
         print('ctakes mentions', len(test))
         if len(test) > 0:
-            frames = [ analytical_cui, disambiguate(test) ]
+            #frames = [ analytical_cui, disambiguate(test) ]
+            frames = [ analytical_cui, test ]
             analytical_cui = pd.concat(frames, ignore_index=True, sort=False) 
 
         ### ------>  mm
         test = mm[mm['note_id'] == case].copy()
         print('mm candidate', len(test))
         if len(test) > 0:
-            frames = [ analytical_cui, disambiguate(test) ]
+            #frames = [ analytical_cui, disambiguate(test) ]
+            frames = [ analytical_cui, test ]
             analytical_cui = pd.concat(frames, ignore_index=True, sort=False) 
         
     now = datetime.now()
     timestamp = datetime.timestamp(now)
-    analytical_cui = analytical_cui.drop('length', 1)
+    #analytical_cui = analytical_cui.drop('length', 1)
     
     return analytical_cui
     
