@@ -17,7 +17,7 @@
 '''
 
 import click
-import combo_searcher_new.combo_searcher as cs
+from combo_searcher_new import combo_searcher as cs
 import importlib as i
 import gevent
 from scipy import stats 
@@ -26,6 +26,7 @@ from scipy.stats.mstats import gmean
 import random
 import pandas as pd
 import numpy as np
+import sparse as sp
 import math
 import pymysql
 import time 
@@ -41,7 +42,9 @@ from typing import List, Set, Tuple
 from sklearn.metrics import classification_report, confusion_matrix
 from scipy import sparse
 import statistics as s
+from numba import jit
 
+#%load_ext Cython
 # The cell below contains the configurable parameters to ensure that our ensemble explorer runs properaly on your machine. 
 # Please read carfully through steps (1-11) before running the rest of the cells.
 
@@ -58,8 +61,8 @@ import statistics as s
 #corpus = 'clinical_trial2'
 #corpus = 'fairview'
 #corpus = 'i2b2'
-#corpus = 'mipacq'
-corpus = 'medmentions'
+corpus = 'mipacq'
+#corpus = 'medmentions'
 
 # TODO: create config.py file
 # STEP-2: CHOOSE YOUR DATA DIRECTORY; this is where output data will be saved on your machine
@@ -71,16 +74,14 @@ data_out = Path('/Users/gms/development/nlp/nlpie/data/ensembling-u01/output/')
 # STEP-3: CHOOSE WHICH SYSTEMS YOU'D LIKE TO EVALUATE AGAINST THE CORPUS REFERENCE SET
 systems = ['biomedicus', 'clamp', 'ctakes', 'metamap', 'quick_umls']
 
-
 # TODO: move to click param
 # STEP-4: CHOOSE TYPE OF RUN:  
-rtype = 2      # OPTIONS INCLUDE: 2->Ensemble; 3->Tests; 4 -> majority vote; 6 -> add hoc ensemble; 7 -> complementarity
+rtype = 7      # OPTIONS INCLUDE: 2->Ensemble; 3->Tests; 4 -> majority vote; 6 -> add hoc ensemble; 7 -> complementarity
                # The Ensemble can include the max system set ['ctakes','biomedicus','clamp','metamap','quick_umls']
-
 
 # TODO: move to click param
 # STEP-5: CHOOSE WHAT TYPE OF ANALYSIS YOU'D LIKE TO RUN ON THE CORPUS
-analysis_type = 'cui' #options include 'entity', 'cui' OR 'full'
+analysis_type = 'entity' #options include 'entity', 'cui' OR 'full'
 
 # TODO: create config.py file
 # STEP-(6A): ENTER DETAILS FOR ACCESSING MANUAL ANNOTATION DATA
@@ -88,8 +89,8 @@ database_type = 'mysql+pymysql' # We use mysql+pymql as default
 database_username = 'gms'
 database_password = 'nej123' 
 database_url = 'localhost' # HINT: use localhost if you're running database on your local machine
-#database_name = 'clinical_trial' # Enter database name
-database_name = 'medmentions' # Enter database name
+database_name = 'concepts' # Enter database name
+#database_name = 'medmentions' # Enter database name
 
 def ref_data(corpus):
     return corpus + '_all' # Enter the table within the database where your reference data is stored
@@ -99,7 +100,7 @@ table_name = ref_data(corpus)
 # STEP-(6B): ENTER DETAILS FOR ACCESSING SYSTEM ANNOTATION DATA
 
 def sys_data(corpus, analysis_type):
-    if analysis_type == 'entitie':
+    if analysis_type == 'entity':
         return 'analytical_'+corpus+'.csv' # OPTIONS include 'analytical_cui_mipacq_concepts.csv' OR 'analytical_cui_i2b2_concepts.csv' 
     elif analysis_type in ('cui', 'full', 'entity'):
         return 'analytical_'+corpus+'_cui.csv' # OPTIONS include 'analytical_cui_mipacq_concepts.csv' OR 'analytical_cui_i2b2_concepts.csv' 
@@ -109,10 +110,12 @@ system_annotation = sys_data(corpus, analysis_type)
 # STEP-7: CREATE A DB CONNECTION POOL
 engine_request = str(database_type)+'://'+database_username+':'+database_password+"@"+database_url+'/'+database_name
 engine = create_engine(engine_request, pool_pre_ping=True, pool_size=20, max_overflow=30)
+#engine = engine_request
+
 
 # TODO: move to click param
 # STEP-(8A): FILTER BY SEMTYPE
-filter_semtype = False
+filter_semtype = True 
 
 # TODO: create config.py file
 # STEP-(8B): IF STEP-(8A) == True -> GET REFERENCE SEMTYPES
@@ -124,7 +127,7 @@ def ref_semtypes(filter_semtype, corpus):
         elif corpus == 'i2b2':
             semtypes = ['test,treatment', 'problem']
         elif corpus == 'mipacq':
-            semtypes = ['Procedures', 'Disorders,Sign_Symptom', 'Anatomy', 'Chemicals_and_drugs']
+            semtypes =  ['Anatomy'] #['Procedures', 'Disorders,Sign_Symptom', 'Anatomy', 'Chemicals_and_drugs']
         elif corpus in ['clinical_trial', 'clinical_trial2']:
             semtypes = ['drug,drug::drug_name,drug::drug_dose,dietary_sppplement::dietary_seeelement_name,dietary_supplement::dietary_supplement_dose',
                         'temporal_measurement,qualifier,measurement',
@@ -134,7 +137,9 @@ def ref_semtypes(filter_semtype, corpus):
                         'diet',
                         'measurement,qualifier',
                         'procedure,observation']
-        
+        elif corpus == 'medmentions':
+            semtypes = ['Procedures', 'Anatomy', 'Disorders', 'Chemicals & Drugs']
+
         return semtypes
 
 semtypes = ref_semtypes(filter_semtype, corpus)
@@ -174,7 +179,6 @@ ensemble_type = 'merge'
 -> confusion matrix for multiclass 
 '''
 
-
 # config class for analysis
 class AnalysisConfig():
     """
@@ -205,11 +209,13 @@ class SemanticTypes(object):
     
     def __init__(self, semtypes, corpus):
         self = self
-        
-        if corpus == 'clinical_trial2':
+
+        if corpus == 'medmentions':
+            sql = "SELECT st.tui, abbreviation, clamp_name, ctakes_name FROM concepts.semantic_groups sg join concepts.semantic_types st on sg.tui = st.tui where group_name in ({})"               .format(', '.join(['%s' for _ in semtypes]))  
+        elif corpus == 'clinical_trial2':
             sql = "SELECT st.tui, abbreviation, clamp_name, ctakes_name, biomedicus_name FROM clinical_trial.semantic_groups sg join semantic_types st on sg.tui = st.tui where " + corpus + "_name in ({})"                .format(', '.join(['%s' for _ in semtypes]))  
         else:
-            sql = "SELECT st.tui, abbreviation, clamp_name, ctakes_name FROM concepts.semantic_groups sg join semantic_types st on sg.tui = st.tui where " + corpus + "_name in ({})"               .format(', '.join(['%s' for _ in semtypes]))  
+            sql = "SELECT st.tui, abbreviation, clamp_name, ctakes_name FROM concepts.semantic_groups sg join concepts.semantic_types st on sg.tui = st.tui where " + corpus + "_name in ({})"               .format(', '.join(['%s' for _ in semtypes]))  
         
         stypes = pd.read_sql(sql, params=[semtypes], con=engine) 
        
@@ -220,13 +226,14 @@ class SemanticTypes(object):
         else:
             self.biomedicus_types = None
             self.qumls_types = None
+
         
-        if stypes['clamp_name'].dropna(inplace=True) or len(stypes['clamp_name']) == 0:
+        if stypes['clamp_name'].dropna(inplace=True) or len(stypes['clamp_name'].tolist()) == 0 or None in stypes['clamp_name'].tolist():
             self.clamp_types = None
         else:
             self.clamp_types = set(stypes['clamp_name'].tolist()[0].split(','))
          
-        if stypes['ctakes_name'].dropna(inplace=True) or len(stypes['ctakes_name']) == 0:
+        if stypes['ctakes_name'].dropna(inplace=True) or len(stypes['ctakes_name'].tolist()) == 0 or None in stypes['ctakes_name'].tolist():
             self.ctakes_types = None
         else:
             self.ctakes_types = set(stypes['ctakes_name'].tolist()[0].split(','))
@@ -538,14 +545,15 @@ def flatten_list(l):
 
 #@listToTuple
 #@ft.lru_cache(maxsize=None)
-def label_vector(doc: str, ann: List[int], labels: List[str]) -> np.array:
+#%load_ext cython
+def label_vector(doc: int, ann: List[int], labels: List[str]) -> np.array:
 
-    v = np.zeros(doc)
+    v = np.zeros(doc, dtype=np.uint8)
     labels = list(labels)
     
     for (i, lab) in enumerate(labels):
         i += 1  # 0 is reserved for no label
-        idxs = [np.arange(a.begin, a.end) for a in ann if a.label == lab]
+        idxs = [np.arange(a.begin, a.end, dtype=np.int16) for a in ann if a.label == lab]
         idxs = [j for mask in idxs for j in mask]
         v[idxs] = i 
 
@@ -553,17 +561,22 @@ def label_vector(doc: str, ann: List[int], labels: List[str]) -> np.array:
 
 # confusion matrix elements for vectorized annotation set binary classification
 # https://kawahara.ca/how-to-compute-truefalse-positives-and-truefalse-negatives-in-python-for-binary-classification-problems/
+#%%cython 
+#%load_ext cython
+#import sparse as sp
+#import numpy as np
 def confused(sys1, ann1):
-    TP = np.sum(np.logical_and(ann1 > 0, sys1 == ann1))
+    # True Positive (TP): we predict a label of 1 (positive), and the true label is 1.
+    TP = np.sum(np.logical_and(ann1 == 1, sys1 == 1))
 
     # True Negative (TN): we predict a label of 0 (negative), and the true label is 0.
-    TN = np.sum(np.logical_and(ann1 == 0, sys1 == ann1))
+    TN = np.sum(np.logical_and(ann1 == 0, sys1 == 0))
 
     # False Positive (FP): we predict a label of 1 (positive), but the true label is 0.
-    FP = np.sum(np.logical_and(ann1 == 0, sys1 != ann1))
+    FP = np.sum(np.logical_and(ann1 == 0, sys1 == 1))
 
     # False Negative (FN): we predict a label of 0 (negative), but the true label is 1.
-    FN = np.sum(np.logical_and(ann1 > 0, sys1 != ann1))
+    FN = np.sum(np.logical_and(ann1 == 1, sys1 == 0))
     
     return TP, TN, FP, FN
 
@@ -615,7 +628,7 @@ def vectorized_cooccurences(r: object, analysis_type: str, corpus: str, filter_s
         if analysis_type != 'cui':
             s1 = list(sys.loc[sys.case == docs[n][0]].itertuples(index=False))
             sys1 = label_vector(docs[n][1], s1, labels)
-            sys2.append(list(sys1))
+            sys2.append(sys1)
         else:
             s = sys.loc[sys.case == docs[n][0]]['label'].tolist()
             x = [1 if x in s else 0 for x in labels]
@@ -626,7 +639,7 @@ def vectorized_cooccurences(r: object, analysis_type: str, corpus: str, filter_s
             
     if analysis_type != 'cui': #binary and multiclass
         #a2 = flatten_list(ann2)
-        s2 = flatten_list(sys2)
+        s2 = np.array(flatten_list(sys2), dtype=np.uint8)
         
         
         if analysis_type == 'full':
@@ -637,7 +650,8 @@ def vectorized_cooccurences(r: object, analysis_type: str, corpus: str, filter_s
             return ((0, 0, 0, 0), (macro_precision, macro_recall, macro_f1))
         else:
             #TN, FP, FN, TP = confusion_matrix(a2, s2).ravel()
-            TP, TN, FP, FN = confused(s2, a2)
+
+            TP, TN, FP, FN = confused(sp.COO(s2), sp.COO(a2))
             return ((TP, TN, FP, FN), (0, 0, 0))
                     
     else: # multilabel/multiclass
@@ -648,9 +662,12 @@ def vectorized_cooccurences(r: object, analysis_type: str, corpus: str, filter_s
         macro_recall = report['macro avg']['recall']    
         macro_f1 = report['macro avg']['f1-score']
         return ((0, 0, 0, 0), (macro_precision, macro_recall, macro_f1))
-
                                        
+
 # http://www.lrec-conf.org/proceedings/lrec2016/pdf/105_Paper.pdf        
+#%load_ext cython
+#import numpy as numpy
+#import sparse as sp
 def vectorized_complementarity(r: object, analysis_type: str, corpus: str, c: tuple, filter_semtype, semtype = None) -> np.int64:
     docs = get_docs(corpus)
     
@@ -661,17 +678,10 @@ def vectorized_complementarity(r: object, analysis_type: str, corpus: str, c: tu
     else: 
         ann = get_ref_ann(analysis_type, corpus, filter_semtype)
     
-    #if filter_semtype and SemanticTypes([semtype], corpus).get_system_type(r.sysA) and SemanticTypes([semtype], corpus).get_system_type(r.sysB) or not filter_semtype: 
-    
-    '''
-    sysA = get_sys_data(r.sysA, analysis_type, corpus, filter_semtype, semtype)
-    sysB = get_sys_data(r.sysB, analysis_type, corpus, filter_semtype, semtype)
-    '''
-
     sysA = r.sysA
     sysB = r.sysB
-    sysA = sysA.rename(index=str, columns={"note_id": "case"})
-    sysB = sysB.rename(index=str, columns={"note_id": "case"})
+    sysA = sysA.rename(columns={"note_id": "case"})
+    sysB = sysB.rename(columns={"note_id": "case"})
 
     if analysis_type == 'entity':
         sysA["label"] = 'concept'
@@ -696,21 +706,20 @@ def vectorized_complementarity(r: object, analysis_type: str, corpus: str, c: tu
 
     sys_a2 = list()
     sys_b2 = list()
-    sys_ab2 = list()
+    #sys_ab2 = list()
     ann2 = list()
     s_a2 = list()
     s_b2 = list()
 
-    sys2 = list()
     a2 = list()
     
     cvals = list()
 
     for n in range(len(docs)):
 
-        a1 = list(ann.loc[ann["case"] == docs[n][0]].itertuples(index=False))
+        a1 = list(ann.loc[ann.case == docs[n][0]].itertuples(index=False))
         ann1 = label_vector(docs[n][1], a1, labels)
-        ann2.append(list(ann1))
+        ann2.append(ann1)
 
         # get for Aright/Awrong and Bright/Bwrong
         s_a1 = list(sysA.loc[sysA.case == docs[n][0]].itertuples(index=False))
@@ -718,46 +727,52 @@ def vectorized_complementarity(r: object, analysis_type: str, corpus: str, c: tu
         sys_a1 = label_vector(docs[n][1], s_a1, labels)
         sys_b1 = label_vector(docs[n][1], s_b1, labels)
 
-        sys_a2.append(list(sys_a1))
-        sys_b2.append(list(sys_b1))
+        sys_a2.append(sys_a1)
+        sys_b2.append(sys_b1)
 
-        # intersected list this will give positive values
+        # intersected list this will give positive values 
+        # NB: intersection only gives positive labels, 
+        # since systems do not annotate for negative class
         s_ab1 = list(set(s_a1).intersection(set(s_b1)))
         
         # in one set or other but not both for negative values
+        # NB: negative class is inherently antisymetric
         s_ab2 = list(set(s_a1).symmetric_difference(set(s_b1)))
         
         s_ab1_ab2 = list(set(s_ab1).union(set(s_ab2)))
-        
+
         sys_ab1 = label_vector(docs[n][1], s_ab1, labels)
-        sys_ab2.append(list(sys_ab1))
+        #sys_ab2.append(list(sys_ab1))
         
         sys_ab1_ab2 = label_vector(docs[n][1], s_ab1_ab2, labels)
-        
+
         if len(s_ab1) == 0:
             FP = FN = 0
             #print(docs[n][0], FP, FN)
         else:
-            _, _, FP, _ = confused(sys_ab1, ann1)
-            _, _, _, FN = confused(sys_ab1_ab2, ann1)
+
+            _, _, FP, _ = confused(sp.COO(sys_ab1), sp.COO(ann1))
+            _, _, _, FN = confused(sp.COO(sys_ab1_ab2), sp.COO(ann1))
         
         cvals.append([FP, FN])
 
-    a2 = [item for sublist in ann2 for item in sublist]
+    #a2 = [item for sublist in ann2 for item in sublist]
+    a2 = np.concatenate(ann2).ravel()
 
     # right/wrong for A and B
-    s_a2 = [item for sublist in sys_a2 for item in sublist]
-    s_b2 = [item for sublist in sys_b2 for item in sublist]
+    #s_a2 = [item for sublist in sys_a2 for item in sublist]
+    s_a2 = np.concatenate(sys_a2).ravel()
+    #s_b2 = [item for sublist in sys_b2 for item in sublist]
+    s_b2 = np.concatenate(sys_b2).ravel()
     
     FP = np.sum(cvals, axis=0)[0]
     FN = np.sum(cvals, axis=0)[1]
 
-    _, _, aFP, aFN = confused(np.array(s_a2), np.array(a2))
-    _, _, bFP, bFN = confused(np.array(s_b2), np.array(a2))
+    _, _, aFP, aFN = confused(sp.COO((s_a2)), sp.COO((a2)))
+    _, _, bFP, bFN = confused(sp.COO((s_b2)), sp.COO((a2)))
 
     b_over_a, a_over_b, mean_comp = complementarity_measures(FN, FP, aFN, aFP, bFN, bFP)
-    #b_over_a, a_over_b = complementarity_measures(FN, FP, aFN, aFP, bFN, bFP)
-    
+
     b_over_a['system'] = str((r.nameB, r.nameA))
     b_over_a['B'] = r.nameB    
     b_over_a['A'] = r.nameA
@@ -854,18 +869,30 @@ def cm_dict(ref_only: int, system_only: int, ref_system_match: int, system_n: in
 def get_metric_data(analysis_type: str, corpus: str):
    
     usys_file, ref_table = AnalysisConfig().corpus_config()
-    systems = AnalysisConfig().systems
-    
-    sys_ann = pd.read_csv(analysisConf.data_dir + usys_file, dtype={'note_id': str})
+    #systems = AnalysisConfig().systems
+   
+    if corpus != 'medmentiopns':
+        sys_ann = pd.read_csv(analysisConf.data_dir + usys_file, dtype={'note_id': str})
+    else:
+        sys_ann = pd.read_csv(analysisConf.data_dir + usys_file)
+        sys_ann['note_id'] = pd.to_numeric(sys_ann['note_id'])
+
+    sys_ann = sys_ann.rename(columns={"semtype": "semtypes"})
     
     sql = "SELECT * FROM " + ref_table #+ " where semtype in('Anatomy', 'Chemicals_and_drugs')" 
     
     ref_ann = pd.read_sql(sql, con=engine)
-    #sys_ann = sys_ann.drop_duplicates()
+
+    if corpus == 'medmentions':
+        ref_ann['file'] = pd.to_numeric(ref_ann['file'])
+
+    sys_ann = sys_ann.drop_duplicates()
 
     ref_ann, _ = reduce_mem_usage(ref_ann)
     sys_ann, _ = reduce_mem_usage(sys_ann)
-
+ 
+    #sys_ann['note_id'] = sys_ann['note_id'].astype('category')
+    #sys_ann['note_id'] = sys_ann['note_id'].cat.as_ordered()
     
     return ref_ann, sys_ann
 
@@ -875,7 +902,7 @@ def geometric_mean(metrics):
     """
     1. Get rank average of F1, TP/FN, TM
         http://www.datasciencemadesimple.com/rank-dataframe-python-pandas-min-max-dense-rank-group/
-        https://stackoverflow.com/questions/46686315/in-pandas-how-to-create-a-new-column-with-a-rank-according-to-the-mean-values-o?rq=1
+        attps://stackoverflow.com/questions/46686315/in-pandas-how-to-create-a-new-column-with-a-rank-according-to-the-mean-values-o?rq=1
     2. Take geomean of rank averages
         https://stackoverflow.com/questions/42436577/geometric-mean-applied-on-row
     """
@@ -1019,7 +1046,7 @@ def get_sys_data(system: str, analysis_type: str, corpus: str, filter_semtype, s
             out = out.loc[out.semtypes.isin(st)]
             
         else:
-            out = out.loc[out.system== system]
+            out = out.loc[out.system == system]
             
         if system == 'quick_umls':
             out = out.loc[(out.score.astype(float) >= 0.8) & ((out.type == 'concept_jaccard_score_False')|(out.type=='concept'))]
@@ -1054,7 +1081,7 @@ def disambiguate(df):
         data = []
         out = pd.DataFrame()
         
-        test = df.loc[df['note_id']==case].copy()
+        test = df.loc[df.note_id == case].copy()
         
         for row in test.itertuples():
 
@@ -1101,7 +1128,7 @@ def vote(df, systems):
     for case in cases:
         i = 0
         
-        test = df.loc[df.case==case].copy()
+        test = df.loc[df.case == case].copy()
         
         for row in test.itertuples():
 
@@ -1263,8 +1290,8 @@ def process_sentence(pt, sentence, analysis_type, corpus, filter_semtype, semtyp
 
 class Results(object):
     def __init__(self):
-        self.ref = np.array(list())
-        self.sys = np.array(list())
+        self.ref = np.array(list(), dtype=np.uint8)
+        self.sys = np.array(list(), dtype=np.uint8)
         self.df = pd.DataFrame()
         self.labels = list()
 
@@ -1360,11 +1387,20 @@ def get_docs(corpus):
     # KLUDGE!!!
     if corpus == 'ray_test':
         corpus = 'fairview'
-        
-    sql = 'select distinct note_id, len_doc from sofas where corpus = %(corpus)s order by note_id'
-    df = pd.read_sql(sql, params={"corpus":corpus}, con=engine)
+    
+    if corpus == "medmentions":
+        sql = 'select distinct note_id, len_doc from sofas where corpus = %(corpus)s order by note_id'
+    else:
+        sql = 'select distinct note_id, sofa from sofas where corpus = %(corpus)s order by note_id'
+    
+    df = pd.read_sql(sql, params={"corpus": corpus}, con=engine)
     df.drop_duplicates()
-    #df['len_doc'] = df['sofa'].apply(len)
+
+    
+    if corpus != "medmentions":
+        df['len_doc'] = df['sofa'].apply(len)
+    else:
+        sys_ann['note_id'] = pd.to_numeric(sys_ann['note_id'])
     
     subset = df[['note_id', 'len_doc']]
     docs = [tuple(x) for x in subset.to_numpy()]
@@ -1389,7 +1425,7 @@ def get_ref_ann(analysis_type, corpus, filter_semtype, semtype = None):
             semtype = [semtype]
         
     ann, _ = get_metric_data(analysis_type, corpus)
-    ann = ann.rename(index=str, columns={"start": "begin", "file": "case"})
+    ann = ann.rename(columns={"start": "begin", "file": "case", "semgroup": "semtype"})
     
     if filter_semtype:
         ann = ann.loc[ann.semtype.isin(semtype)]
@@ -1406,11 +1442,11 @@ def get_ref_ann(analysis_type, corpus, filter_semtype, semtype = None):
     
     return ann
 
-@ft.lru_cache(maxsize=None)
+#@ft.lru_cache(maxsize=None)
 def get_sys_ann(analysis_type, r):
     sys = r.system_merges
 
-    sys = sys.rename(index=str, columns={"note_id": "case", "cui": "value"})
+    sys = sys.rename(columns={"note_id": "case", "cui": "value"})
     
     sys = set_labels(analysis_type, sys)
     
@@ -1651,7 +1687,7 @@ def get_merge_data(boolean_expression: str, analysis_type: str, corpus: str, run
         return results.system_merges
 
 
-#@ft.lru_cache(maxsize=None)
+@ft.lru_cache(maxsize=None)
 def get_reference_vector(analysis_type, corpus, filter_semtype, semtype = None):
     ref_ann = get_ref_ann(analysis_type, corpus, filter_semtype, semtype)
 
@@ -1672,9 +1708,9 @@ def get_reference_vector(analysis_type, corpus, filter_semtype, semtype = None):
     test = vectorized_annotations(ref, analysis_type, labels)
     
     if analysis_type != 'cui':
-        ref =  np.asarray(flatten_list(test), dtype=np.int32) 
+        ref =  np.asarray(flatten_list(test), dtype=np.uint8) 
     else: 
-        ref =  np.asarray(test, dtype=np.int32)
+        ref =  np.asarray(test, dtype=np.int16)
 
     return ref
 
@@ -1973,8 +2009,7 @@ def main():
                         n = statement.count('&') + statement.count('|') + 1 
                         or_['n_terms'] = n
 
-                        # --> end staandard metrics
-
+                        # --> end standard metrics
 
                         out = vectorized_complementarity(r, analysis_type, corpus, c, filter_semtype, semtype)
                         out['semgroup'] = semtype
@@ -2001,7 +2036,7 @@ def main():
                
                 for c in expressions:
                     print('complementarity between:', c)
-                        
+
                     r.nameA = c[0]
                     r.nameB = c[1]
 
@@ -2062,7 +2097,8 @@ def main():
 
 if __name__ == '__main__':
     # %load_ext memory_profiler
-    get_ipython().run_line_magic('prun', 'main()')
+    #get_ipython().run_line_magic('prun', 'main()')
+    %lprun -f vectorized_complementarity main()
     print('done!')
 
 
