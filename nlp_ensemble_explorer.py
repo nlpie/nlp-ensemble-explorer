@@ -44,7 +44,7 @@ from scipy import sparse
 import statistics as s
 from numba import jit
 
-#%load_ext Cython
+%load_ext Cython
 # The cell below contains the configurable parameters to ensure that our ensemble explorer runs properaly on your machine. 
 # Please read carfully through steps (1-11) before running the rest of the cells.
 
@@ -61,8 +61,8 @@ from numba import jit
 #corpus = 'clinical_trial2'
 #corpus = 'fairview'
 #corpus = 'i2b2'
-corpus = 'mipacq'
-#corpus = 'medmentions'
+#corpus = 'mipacq'
+corpus = 'medmentions'
 
 # TODO: create config.py file
 # STEP-2: CHOOSE YOUR DATA DIRECTORY; this is where output data will be saved on your machine
@@ -89,7 +89,7 @@ database_type = 'mysql+pymysql' # We use mysql+pymql as default
 database_username = 'gms'
 database_password = 'nej123' 
 database_url = 'localhost' # HINT: use localhost if you're running database on your local machine
-database_name = 'concepts' # Enter database name
+database_name = 'medmentions' # concepts' # Enter database name
 #database_name = 'medmentions' # Enter database name
 
 def ref_data(corpus):
@@ -563,20 +563,31 @@ def label_vector(doc: int, ann: List[int], labels: List[str]) -> np.array:
 # https://kawahara.ca/how-to-compute-truefalse-positives-and-truefalse-negatives-in-python-for-binary-classification-problems/
 #%%cython 
 #%load_ext cython
-#import sparse as sp
 #import numpy as np
-def confused(sys1, ann1):
+def confused(pred, true):
+
+    predicted_true, predicted_false = pred == 1, pred == 0
+    true_true, true_false = true == 1, true == 0
+
     # True Positive (TP): we predict a label of 1 (positive), and the true label is 1.
-    TP = np.sum(np.logical_and(ann1 == 1, sys1 == 1))
+    #TP = np.sum(np.logical_and(true_true, predicted_true))
 
     # True Negative (TN): we predict a label of 0 (negative), and the true label is 0.
-    TN = np.sum(np.logical_and(ann1 == 0, sys1 == 0))
+    #TN = np.sum(np.logical_and(true_false, predicted_false))
 
     # False Positive (FP): we predict a label of 1 (positive), but the true label is 0.
-    FP = np.sum(np.logical_and(ann1 == 0, sys1 == 1))
+    #FP = np.sum(np.logical_and(true_false, predicted_true))
 
     # False Negative (FN): we predict a label of 0 (negative), but the true label is 1.
-    FN = np.sum(np.logical_and(ann1 == 1, sys1 == 0))
+    #FN = np.sum(np.logical_and(ann1 == 1, sys1 == 0))
+
+    not_true = np.logical_not(true)
+    not_predicted = np.logical_not(pred)
+    TP = np.sum(np.logical_and(true, pred))
+    TN = np.sum(np.logical_and(not_true, not_predicted))
+    FP = np.sum(np.logical_and(not_true, pred))
+
+    FN = len(pred) - (TP+TN+FP)
     
     return TP, TN, FP, FN
 
@@ -600,10 +611,12 @@ def vectorized_annotations(ann, analysis_type, labels):
     
 #    ann = r.df
 #    labels = r.labels
+    if analysis_type != 'cui':
+        ann1 = list(ann.itertuples(index=False))
     
     for n in range(len(docs)):
         if analysis_type != 'cui':
-            a1 = list(ann.loc[ann.case == docs[n][0]].itertuples(index=False))
+            a1 = [i for i in ann1 if i.case == docs[n][0]]
             a = label_vector(docs[n][1], a1, labels)
             out.append(a)
         else:
@@ -622,18 +635,21 @@ def vectorized_cooccurences(r: object, analysis_type: str, corpus: str, filter_s
     
     sys2 = list()
     s2 = list()
+
+    if analysis_type != 'cui':
+        s = list(sys.itertuples(index=False))
     
+
     for n in range(len(docs)):
 
         if analysis_type != 'cui':
-            s1 = list(sys.loc[sys.case == docs[n][0]].itertuples(index=False))
+            s1 = [i for i in s if i.case==docs[n][0]] # list(sys.loc[sys.case == docs[n][0]].itertuples(index=False))
             sys1 = label_vector(docs[n][1], s1, labels)
             sys2.append(sys1)
         else:
             s = sys.loc[sys.case == docs[n][0]]['label'].tolist()
             x = [1 if x in s else 0 for x in labels]
             s2.append(x)
-
 
     a2 = get_reference_vector(analysis_type, corpus, filter_semtype, semtype)
             
@@ -706,24 +722,31 @@ def vectorized_complementarity(r: object, analysis_type: str, corpus: str, c: tu
 
     sys_a2 = list()
     sys_b2 = list()
-    #sys_ab2 = list()
+    sys_ab2 = list()
     ann2 = list()
     s_a2 = list()
     s_b2 = list()
+    sys_ab1_ab3 = list()
 
     a2 = list()
     
     cvals = list()
+    
+    #a = list(ann.itertuples(index=False))
+    b = list(sysA.itertuples(index=False))
+    c = list(sysB.itertuples(index=False))
+
+    a2 = get_reference_vector(analysis_type, corpus, filter_semtype, semtype)
 
     for n in range(len(docs)):
 
-        a1 = list(ann.loc[ann.case == docs[n][0]].itertuples(index=False))
-        ann1 = label_vector(docs[n][1], a1, labels)
-        ann2.append(ann1)
+        #a1 = [i for i in a if i.case==docs[n][0]]# list(ann.loc[ann.case == docs[n][0]].itertuples(index=False))
+        #ann1 = label_vector(docs[n][1], a1, labels)
+        #ann2.append(ann1)
 
         # get for Aright/Awrong and Bright/Bwrong
-        s_a1 = list(sysA.loc[sysA.case == docs[n][0]].itertuples(index=False))
-        s_b1 = list(sysB.loc[sysB.case == docs[n][0]].itertuples(index=False))
+        s_a1 = [i for i in b if i.case==docs[n][0]]##list(sysA.loc[sysA.case == docs[n][0]].itertuples(index=False))
+        s_b1 = [i for i in c if i.case==docs[n][0]]# list(sysB.loc[sysB.case == docs[n][0]].itertuples(index=False))
         sys_a1 = label_vector(docs[n][1], s_a1, labels)
         sys_b1 = label_vector(docs[n][1], s_b1, labels)
 
@@ -742,22 +765,23 @@ def vectorized_complementarity(r: object, analysis_type: str, corpus: str, c: tu
         s_ab1_ab2 = list(set(s_ab1).union(set(s_ab2)))
 
         sys_ab1 = label_vector(docs[n][1], s_ab1, labels)
-        #sys_ab2.append(list(sys_ab1))
+        sys_ab2.append(sys_ab1)
         
         sys_ab1_ab2 = label_vector(docs[n][1], s_ab1_ab2, labels)
+        sys_ab1_ab3.append(sys_ab1_ab2)
 
-        if len(s_ab1) == 0:
-            FP = FN = 0
+        #if len(s_ab1) == 0:
+        #    FP = FN = 0
             #print(docs[n][0], FP, FN)
-        else:
+        #else:
 
-            _, _, FP, _ = confused(sp.COO(sys_ab1), sp.COO(ann1))
-            _, _, _, FN = confused(sp.COO(sys_ab1_ab2), sp.COO(ann1))
+        #    _, _, FP, _ = confused(sp.COO(sys_ab1), sp.COO(ann1))
+        #    _, _, _, FN = confused(sp.COO(sys_ab1_ab2), sp.COO(ann1))
         
-        cvals.append([FP, FN])
+        #cvals.append([FP, FN])
 
     #a2 = [item for sublist in ann2 for item in sublist]
-    a2 = np.concatenate(ann2).ravel()
+    #a2 = np.concatenate(ann2).ravel()
 
     # right/wrong for A and B
     #s_a2 = [item for sublist in sys_a2 for item in sublist]
@@ -765,11 +789,19 @@ def vectorized_complementarity(r: object, analysis_type: str, corpus: str, c: tu
     #s_b2 = [item for sublist in sys_b2 for item in sublist]
     s_b2 = np.concatenate(sys_b2).ravel()
     
-    FP = np.sum(cvals, axis=0)[0]
-    FN = np.sum(cvals, axis=0)[1]
+    #FP = np.sum(cvals, axis=0)[0]
+    #FN = np.sum(cvals, axis=0)[1]
+    #sys_ab3 =  [item for sublist in sys_ab2 for item in sublist] # 
+    sys_ab3 = np.concatenate(sys_ab2).ravel()
+    #sys_ab1_ab4 = [item for sublist in sys_ab1_ab3 for item in sublist] # 
+    sys_ab1_ab4 = np.concatenate(sys_ab1_ab3).ravel()
 
-    _, _, aFP, aFN = confused(sp.COO((s_a2)), sp.COO((a2)))
-    _, _, bFP, bFN = confused(sp.COO((s_b2)), sp.COO((a2)))
+
+    _, _, FP, _ = confused(sp.COO(sys_ab3), sp.COO(a2))
+    _, _, _, FN = confused(sp.COO(sys_ab1_ab4), sp.COO(a2))
+
+    _, _, aFP, aFN = confused(sp.COO(s_a2), sp.COO(a2))
+    _, _, bFP, bFN = confused(sp.COO(s_b2), sp.COO(a2))
 
     b_over_a, a_over_b, mean_comp = complementarity_measures(FN, FP, aFN, aFP, bFN, bFP)
 
@@ -879,12 +911,16 @@ def get_metric_data(analysis_type: str, corpus: str):
 
     sys_ann = sys_ann.rename(columns={"semtype": "semtypes"})
     
-    sql = "SELECT * FROM " + ref_table #+ " where semtype in('Anatomy', 'Chemicals_and_drugs')" 
+    sql = "SELECT * FROM " + ref_table #+ " where semtype in('Anatomy', 'Chemicals_and_drugs')"a
     
     ref_ann = pd.read_sql(sql, con=engine)
 
     if corpus == 'medmentions':
+        cases = set(ref_ann["file"].tolist())
+        cases = [int(i) for i in cases]
         ref_ann['file'] = pd.to_numeric(ref_ann['file'])
+        sys_ann['note_id'] = pd.to_numeric(sys_ann['note_id'])
+        sys_ann = sys_ann.loc[sys_ann.note_id.isin(cases)]
 
     sys_ann = sys_ann.drop_duplicates()
 
@@ -1287,7 +1323,6 @@ def process_sentence(pt, sentence, analysis_type, corpus, filter_semtype, semtyp
     return r
 
 
-
 class Results(object):
     def __init__(self):
         self.ref = np.array(list(), dtype=np.uint8)
@@ -1389,18 +1424,17 @@ def get_docs(corpus):
         corpus = 'fairview'
     
     if corpus == "medmentions":
-        sql = 'select distinct note_id, len_doc from sofas where corpus = %(corpus)s order by note_id'
+        sql = 'select distinct note_id, len_doc from sofas where test=1 and corpus = %(corpus)s order by note_id'
     else:
         sql = 'select distinct note_id, sofa from sofas where corpus = %(corpus)s order by note_id'
     
     df = pd.read_sql(sql, params={"corpus": corpus}, con=engine)
     df.drop_duplicates()
 
-    
     if corpus != "medmentions":
         df['len_doc'] = df['sofa'].apply(len)
     else:
-        sys_ann['note_id'] = pd.to_numeric(sys_ann['note_id'])
+        df['note_id'] = pd.to_numeric(df['note_id'])
     
     subset = df[['note_id', 'len_doc']]
     docs = [tuple(x) for x in subset.to_numpy()]
@@ -1717,7 +1751,6 @@ def get_reference_vector(analysis_type, corpus, filter_semtype, semtype = None):
 def get_majority_sys(systems, analysis_type, corpus, filter_semtype, semtype):
     
     d = {}
-    sys_test = []
     
     if 'entity' in analysis_type: 
         cols_to_keep = ['begin', 'end', 'case', 'label', 'system']
@@ -2097,8 +2130,8 @@ def main():
 
 if __name__ == '__main__':
     # %load_ext memory_profiler
-    #get_ipython().run_line_magic('prun', 'main()')
-    %lprun -f vectorized_complementarity main()
+    get_ipython().run_line_magic('prun', 'main()')
+    #%lprun -f vectorized_complementarity -f label_vector main()
     print('done!')
 
 
@@ -2148,3 +2181,4 @@ if __name__ == '__main__':
     #get_options()
     #main()
 '''
+
