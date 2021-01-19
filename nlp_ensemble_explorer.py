@@ -569,18 +569,6 @@ def confused(pred, true):
     predicted_true, predicted_false = pred == 1, pred == 0
     true_true, true_false = true == 1, true == 0
 
-    # True Positive (TP): we predict a label of 1 (positive), and the true label is 1.
-    #TP = np.sum(np.logical_and(true_true, predicted_true))
-
-    # True Negative (TN): we predict a label of 0 (negative), and the true label is 0.
-    #TN = np.sum(np.logical_and(true_false, predicted_false))
-
-    # False Positive (FP): we predict a label of 1 (positive), but the true label is 0.
-    #FP = np.sum(np.logical_and(true_false, predicted_true))
-
-    # False Negative (FN): we predict a label of 0 (negative), but the true label is 1.
-    #FN = np.sum(np.logical_and(ann1 == 1, sys1 == 0))
-
     not_true = np.logical_not(true)
     not_predicted = np.logical_not(pred)
     TP = np.sum(np.logical_and(true, pred))
@@ -603,14 +591,11 @@ def get_labels(analysis_type, corpus, filter_semtype, semtype = None):
     return labels
 
 #@ft.lru_cache(maxsize=None)
-#def vectorized_annotations(r, analysis_type):
 def vectorized_annotations(ann, analysis_type, labels):
     
     docs = get_docs(corpus)
     out = []
     
-#    ann = r.df
-#    labels = r.labels
     if analysis_type != 'cui':
         ann1 = list(ann.itertuples(index=False))
     
@@ -654,9 +639,7 @@ def vectorized_cooccurences(r: object, analysis_type: str, corpus: str, filter_s
     a2 = get_reference_vector(analysis_type, corpus, filter_semtype, semtype)
             
     if analysis_type != 'cui': #binary and multiclass
-        #a2 = flatten_list(ann2)
         s2 = np.array(flatten_list(sys2), dtype=np.uint8)
-        
         
         if analysis_type == 'full':
             report = classification_report(a2, s2, output_dict=True)
@@ -732,17 +715,12 @@ def vectorized_complementarity(r: object, analysis_type: str, corpus: str, c: tu
     
     cvals = list()
     
-    #a = list(ann.itertuples(index=False))
     b = list(sysA.itertuples(index=False))
     c = list(sysB.itertuples(index=False))
 
     a2 = get_reference_vector(analysis_type, corpus, filter_semtype, semtype)
 
     for n in range(len(docs)):
-
-        #a1 = [i for i in a if i.case==docs[n][0]]# list(ann.loc[ann.case == docs[n][0]].itertuples(index=False))
-        #ann1 = label_vector(docs[n][1], a1, labels)
-        #ann2.append(ann1)
 
         # get for Aright/Awrong and Bright/Bwrong
         s_a1 = [i for i in b if i.case==docs[n][0]]##list(sysA.loc[sysA.case == docs[n][0]].itertuples(index=False))
@@ -770,30 +748,11 @@ def vectorized_complementarity(r: object, analysis_type: str, corpus: str, c: tu
         sys_ab1_ab2 = label_vector(docs[n][1], s_ab1_ab2, labels)
         sys_ab1_ab3.append(sys_ab1_ab2)
 
-        #if len(s_ab1) == 0:
-        #    FP = FN = 0
-            #print(docs[n][0], FP, FN)
-        #else:
-
-        #    _, _, FP, _ = confused(sp.COO(sys_ab1), sp.COO(ann1))
-        #    _, _, _, FN = confused(sp.COO(sys_ab1_ab2), sp.COO(ann1))
-        
-        #cvals.append([FP, FN])
-
-    #a2 = [item for sublist in ann2 for item in sublist]
-    #a2 = np.concatenate(ann2).ravel()
-
     # right/wrong for A and B
-    #s_a2 = [item for sublist in sys_a2 for item in sublist]
     s_a2 = np.concatenate(sys_a2).ravel()
-    #s_b2 = [item for sublist in sys_b2 for item in sublist]
     s_b2 = np.concatenate(sys_b2).ravel()
     
-    #FP = np.sum(cvals, axis=0)[0]
-    #FN = np.sum(cvals, axis=0)[1]
-    #sys_ab3 =  [item for sublist in sys_ab2 for item in sublist] # 
     sys_ab3 = np.concatenate(sys_ab2).ravel()
-    #sys_ab1_ab4 = [item for sublist in sys_ab1_ab3 for item in sublist] # 
     sys_ab1_ab4 = np.concatenate(sys_ab1_ab3).ravel()
 
 
