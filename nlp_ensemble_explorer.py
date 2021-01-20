@@ -42,7 +42,9 @@ from typing import List, Set, Tuple
 from sklearn.metrics import classification_report, confusion_matrix
 from scipy import sparse
 import statistics as s
-from numba import jit
+
+import multiprocessing as mp
+from joblib import Parallel, delayed
 
 %load_ext Cython
 # The cell below contains the configurable parameters to ensure that our ensemble explorer runs properaly on your machine. 
@@ -138,7 +140,7 @@ def ref_semtypes(filter_semtype, corpus):
                         'measurement,qualifier',
                         'procedure,observation']
         elif corpus == 'medmentions':
-            semtypes = ['Procedures', 'Anatomy', 'Disorders', 'Chemicals & Drugs']
+            semtypes = ['Procedures'] #, 'Anatomy', 'Disorders', 'Chemicals & Drugs']
 
         return semtypes
 
@@ -238,11 +240,6 @@ class SemanticTypes(object):
         else:
             self.ctakes_types = set(stypes['ctakes_name'].tolist()[0].split(','))
  
-        # Kludge for b9 temporal
-#         if stypes['biomedicus_name'].dropna(inplace=True) or len(stypes['biomedicus_name']) > 0:
-#             self.biomedicus_types.update(set(stypes['biomedicus_name'].tolist()[0].split(',')))
-        #else:
-        #    self.biomedicus_type = None
         
         if len(stypes['abbreviation'].tolist()) > 0:
             self.metamap_types = set(stypes['abbreviation'].tolist())
@@ -311,9 +308,6 @@ class Metrics(object):
         compute confusion matrix measures, as per  
         https://stats.stackexchange.com/questions/51296/how-do-you-calculate-precision-and-recall-for-multiclass-classification-using-co
         """
-#         cdef:
-#             int TP, FP, FN
-#             double TM
 
         TP = self.gold_system_match
         FP = self.system_only
@@ -599,10 +593,15 @@ def vectorized_annotations(ann, analysis_type, labels):
     if analysis_type != 'cui':
         ann1 = list(ann.itertuples(index=False))
     
-    for n in range(len(docs)):
+    #for n in range(len(docs)):
+    for k, v in docs.items():
         if analysis_type != 'cui':
-            a1 = [i for i in ann1 if i.case == docs[n][0]]
-            a = label_vector(docs[n][1], a1, labels)
+            #a1 = [i for i in ann1 if i.case == docs[n][0]]
+            #a1 = [i for i in ann1 if i.case == docs[n]['note_id']]
+            a1 = [i for i in ann1 if i.case == k]
+            #a = label_vector(docs[n][1], a1, labels)
+            #a = label_vector(docs[n]['len_doc'], a1, labels)
+            a = label_vector(v, a1, labels)
             out.append(a)
         else:
             a = ann.loc[ann.case == docs[n][0]]['label'].tolist()
@@ -625,11 +624,16 @@ def vectorized_cooccurences(r: object, analysis_type: str, corpus: str, filter_s
         s = list(sys.itertuples(index=False))
     
 
-    for n in range(len(docs)):
+    #for n in range(len(docs)):
+    for k, v in docs.items():
 
         if analysis_type != 'cui':
-            s1 = [i for i in s if i.case==docs[n][0]] # list(sys.loc[sys.case == docs[n][0]].itertuples(index=False))
-            sys1 = label_vector(docs[n][1], s1, labels)
+            #s1 = [i for i in s if i.case==docs[n][0]] # list(sys.loc[sys.case == docs[n][0]].itertuples(index=False))
+            #sys1 = label_vector(docs[n][1], s1, labels)
+            s1 = [i for i in s if i.case==k] # list(sys.loc[sys.case == docs[n][0]].itertuples(index=False))
+            sys1 = label_vector(v, s1, labels)
+            #s1 = [i for i in s if i.case==docs[n]['note_id']] # list(sys.loc[sys.case == docs[n][0]].itertuples(index=False))
+            #sys1 = label_vector(docs[n]['len_doc'], s1, labels)
             sys2.append(sys1)
         else:
             s = sys.loc[sys.case == docs[n][0]]['label'].tolist()
@@ -715,18 +719,18 @@ def vectorized_complementarity(r: object, analysis_type: str, corpus: str, c: tu
     
     cvals = list()
     
-    b = list(sysA.itertuples(index=False))
-    c = list(sysB.itertuples(index=False))
+    a = list(sysA.itertuples(index=False))
+    b = list(sysB.itertuples(index=False))
 
     a2 = get_reference_vector(analysis_type, corpus, filter_semtype, semtype)
 
-    for n in range(len(docs)):
+    for k, v in docs.items():
 
         # get for Aright/Awrong and Bright/Bwrong
-        s_a1 = [i for i in b if i.case==docs[n][0]]##list(sysA.loc[sysA.case == docs[n][0]].itertuples(index=False))
-        s_b1 = [i for i in c if i.case==docs[n][0]]# list(sysB.loc[sysB.case == docs[n][0]].itertuples(index=False))
-        sys_a1 = label_vector(docs[n][1], s_a1, labels)
-        sys_b1 = label_vector(docs[n][1], s_b1, labels)
+        s_a1 = [i for i in a if i.case==k]##list(sysA.loc[sysA.case == docs[n][0]].itertuples(index=False))
+        s_b1 = [i for i in b if i.case==k]# list(sysB.loc[sysB.case == docs[n][0]].itertuples(index=False))
+        sys_a1 = label_vector(v, s_a1, labels)
+        sys_b1 = label_vector(v, s_b1, labels)
 
         sys_a2.append(sys_a1)
         sys_b2.append(sys_b1)
@@ -735,17 +739,16 @@ def vectorized_complementarity(r: object, analysis_type: str, corpus: str, c: tu
         # NB: intersection only gives positive labels, 
         # since systems do not annotate for negative class
         s_ab1 = list(set(s_a1).intersection(set(s_b1)))
-        
-        # in one set or other but not both for negative values
-        # NB: negative class is inherently antisymetric
-        s_ab2 = list(set(s_a1).symmetric_difference(set(s_b1)))
-        
-        s_ab1_ab2 = list(set(s_ab1).union(set(s_ab2)))
 
-        sys_ab1 = label_vector(docs[n][1], s_ab1, labels)
+        sys_ab1 = label_vector(v, s_ab1, labels)
         sys_ab2.append(sys_ab1)
         
-        sys_ab1_ab2 = label_vector(docs[n][1], s_ab1_ab2, labels)
+        # in one set or other but not both for negative values
+        # NB: FN is inherently antisymetric for FP
+        s_ab2 = list(set(s_a1).symmetric_difference(set(s_b1)))
+        s_ab1_ab2 = list(set(s_ab1).union(set(s_ab2)))
+        
+        sys_ab1_ab2 = label_vector(v, s_ab1_ab2, labels)
         sys_ab1_ab3.append(sys_ab1_ab2)
 
     # right/wrong for A and B
@@ -754,7 +757,6 @@ def vectorized_complementarity(r: object, analysis_type: str, corpus: str, c: tu
     
     sys_ab3 = np.concatenate(sys_ab2).ravel()
     sys_ab1_ab4 = np.concatenate(sys_ab1_ab3).ravel()
-
 
     _, _, FP, _ = confused(sp.COO(sys_ab3), sp.COO(a2))
     _, _, _, FN = confused(sp.COO(sys_ab1_ab4), sp.COO(a2))
@@ -886,8 +888,6 @@ def get_metric_data(analysis_type: str, corpus: str):
     ref_ann, _ = reduce_mem_usage(ref_ann)
     sys_ann, _ = reduce_mem_usage(sys_ann)
  
-    #sys_ann['note_id'] = sys_ann['note_id'].astype('category')
-    #sys_ann['note_id'] = sys_ann['note_id'].cat.as_ordered()
     
     return ref_ann, sys_ann
 
@@ -965,7 +965,6 @@ def generate_metrics(analysis_type: str, corpus: str, filter_semtype, semtype = 
             ref_ann = get_ref_ann(analysis_type, corpus, filter_semtype)
             
         system_annotations = sys_ann[sys_ann['system'] == sys].copy()
-        #system_annotations = sys_ann[sys_ann['system'] == sys]
 
         if filter_semtype:
             st = SemanticTypes([semtype], corpus).get_system_type(sys)
@@ -1137,10 +1136,6 @@ def vote(df, systems):
  
             if len(set(fx.system.tolist()))>n:
                 data.append(fx)
-            #elif len(set(fx.system.tolist()))==n:
-            #    fx.reset_index(inplace=True)
-            #    fx = fx.reindex(np.random.permutation(out.index))
-            #    fx = fx.drop_duplicates(['begin', 'end', 'case'])
              
     out = pd.concat(data, axis=0)
    
@@ -1354,7 +1349,7 @@ def make_parse_tree(payload):
     """
     def preprocess_sentence(sentence):
         # prepare statement for case when a boolean AND/OR is given
-        sentence = payload.replace('(', ' ( ').             replace(')', ' ) ').             replace('&', ' & ').             replace('|', ' | ').             replace('  ', ' ')
+        sentence = payload.replace('(', ' ( ').replace(')', ' ) ').replace('&', ' & ').replace('|', ' | ').replace('  ', ' ')
         return sentence
 
     sentence = preprocess_sentence(payload)
@@ -1383,7 +1378,7 @@ def get_docs(corpus):
         corpus = 'fairview'
     
     if corpus == "medmentions":
-        sql = 'select distinct note_id, len_doc from sofas where test=1 and corpus = %(corpus)s order by note_id'
+        sql = 'select distinct note_id, len_doc from medmentions.sofas where test=1 and corpus = %(corpus)s order by note_id'
     else:
         sql = 'select distinct note_id, sofa from sofas where corpus = %(corpus)s order by note_id'
     
@@ -1396,8 +1391,7 @@ def get_docs(corpus):
         df['note_id'] = pd.to_numeric(df['note_id'])
     
     subset = df[['note_id', 'len_doc']]
-    docs = [tuple(x) for x in subset.to_numpy()]
-    
+    docs = subset.set_index('note_id')['len_doc'].to_dict()
     return docs
 
 def set_labels(analysis_type, df):
@@ -1538,13 +1532,7 @@ def get_metrics(boolean_expression: str, analysis_type: str, corpus: str, run_ty
 
 # get list of systems with a semantic type in grouping
 def get_valid_systems(systems, semtype):
-    test = []
-    for sys in systems:
-        st = system_semtype_check(sys, semtype, corpus)
-        if st:
-            test.append(sys)
-
-    return test
+    return [system_semtype_check(sys, semtype, corpus) for sys in systems if system_semtype_check(sys, semtype, corpus)]
 
 
 # permute system combinations and evaluate system merges for performance
@@ -1561,7 +1549,7 @@ def run_ensemble(systems, analysis_type, corpus, filter_semtype, semtype = None)
                 d = get_metrics(system, analysis_type, corpus, run_type, filter_semtype, semtype)
             else:
                 d = get_metrics(system, analysis_type, corpus, run_type, filter_semtype)
-            d['merge'] = expression
+            d['merge'] = system
             d['n_terms'] = 1
 
             frames = [metrics, pd.DataFrame(d, index=[0])]
@@ -1833,7 +1821,7 @@ def get_ensemble_combos(systems=['biomedicus', 'clamp', 'ctakes', 'metamap', 'qu
             return len(expr)
 
         def get_result():
-            result = cs.get_best_ensembles(score_method=length_score, # cs.
+            result = cs.get_best_ensembles(score_method=length_score, 
                                names=systems,
                                operators=['&', '|'],
                                order=None,
@@ -1886,7 +1874,6 @@ def get_ensemble_pairs(systems=['biomedicus', 'clamp', 'ctakes', 'metamap', 'qui
 
 # use with combo_searcher
 def ad_hoc_measure(statement, analysis_type, corpus, measure, filter_semtype, semtype = None):
-
     d = get_merge_data(statement, analysis_type, corpus, run_type, filter_semtype, True, semtype)
 
     if measure in ['F1', 'precision', 'recall']:
@@ -1895,7 +1882,6 @@ def ad_hoc_measure(statement, analysis_type, corpus, measure, filter_semtype, se
         print('Invalid measure!')
 
 def ad_hoc_sys(statement, analysis_type, corpus, metrics = False, semtype = None):
-
     sys = get_merge_data(statement, analysis_type, corpus, run_type, filter_semtype, metrics, semtype)
 
     return sys
