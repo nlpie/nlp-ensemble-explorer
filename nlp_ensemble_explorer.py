@@ -43,10 +43,8 @@ from sklearn.metrics import classification_report, confusion_matrix
 from scipy import sparse
 import statistics as s
 
-import multiprocessing as mp
-from joblib import Parallel, delayed
 
-%load_ext Cython
+#%load_ext Cython
 # The cell below contains the configurable parameters to ensure that our ensemble explorer runs properaly on your machine. 
 # Please read carfully through steps (1-11) before running the rest of the cells.
 
@@ -129,7 +127,7 @@ def ref_semtypes(filter_semtype, corpus):
         elif corpus == 'i2b2':
             semtypes = ['test,treatment', 'problem']
         elif corpus == 'mipacq':
-            semtypes =  ['Anatomy'] #['Procedures', 'Disorders,Sign_Symptom', 'Anatomy', 'Chemicals_and_drugs']
+            semtypes = ['Anatomy'] #['Procedures', 'Disorders,Sign_Symptom', 'Anatomy', 'Chemicals_and_drugs']
         elif corpus in ['clinical_trial', 'clinical_trial2']:
             semtypes = ['drug,drug::drug_name,drug::drug_dose,dietary_sppplement::dietary_seeelement_name,dietary_supplement::dietary_supplement_dose',
                         'temporal_measurement,qualifier,measurement',
@@ -140,7 +138,7 @@ def ref_semtypes(filter_semtype, corpus):
                         'measurement,qualifier',
                         'procedure,observation']
         elif corpus == 'medmentions':
-            semtypes = ['Procedures'] #, 'Anatomy', 'Disorders', 'Chemicals & Drugs']
+            semtypes = ['Anatomy'] #, 'Disorders', 'Chemicals & Drugs', 'Procedures']
 
         return semtypes
 
@@ -286,7 +284,6 @@ def system_semtype_check(sys, semtype, corpus):
         return None
 
 #print(system_semtype_check(sys, semtypes, corpus))
-
 
 class Metrics(object):
     """
@@ -593,14 +590,9 @@ def vectorized_annotations(ann, analysis_type, labels):
     if analysis_type != 'cui':
         ann1 = list(ann.itertuples(index=False))
     
-    #for n in range(len(docs)):
     for k, v in docs.items():
         if analysis_type != 'cui':
-            #a1 = [i for i in ann1 if i.case == docs[n][0]]
-            #a1 = [i for i in ann1 if i.case == docs[n]['note_id']]
             a1 = [i for i in ann1 if i.case == k]
-            #a = label_vector(docs[n][1], a1, labels)
-            #a = label_vector(docs[n]['len_doc'], a1, labels)
             a = label_vector(v, a1, labels)
             out.append(a)
         else:
@@ -623,17 +615,11 @@ def vectorized_cooccurences(r: object, analysis_type: str, corpus: str, filter_s
     if analysis_type != 'cui':
         s = list(sys.itertuples(index=False))
     
-
-    #for n in range(len(docs)):
     for k, v in docs.items():
 
         if analysis_type != 'cui':
-            #s1 = [i for i in s if i.case==docs[n][0]] # list(sys.loc[sys.case == docs[n][0]].itertuples(index=False))
-            #sys1 = label_vector(docs[n][1], s1, labels)
             s1 = [i for i in s if i.case==k] # list(sys.loc[sys.case == docs[n][0]].itertuples(index=False))
             sys1 = label_vector(v, s1, labels)
-            #s1 = [i for i in s if i.case==docs[n]['note_id']] # list(sys.loc[sys.case == docs[n][0]].itertuples(index=False))
-            #sys1 = label_vector(docs[n]['len_doc'], s1, labels)
             sys2.append(sys1)
         else:
             s = sys.loc[sys.case == docs[n][0]]['label'].tolist()
@@ -676,54 +662,32 @@ def vectorized_complementarity(r: object, analysis_type: str, corpus: str, c: tu
     
     out = pd.DataFrame()
     
-    if filter_semtype:
-        ann = get_ref_ann(analysis_type, corpus, filter_semtype, semtype)
-    else: 
-        ann = get_ref_ann(analysis_type, corpus, filter_semtype)
-    
     sysA = r.sysA
     sysB = r.sysB
     sysA = sysA.rename(columns={"note_id": "case"})
     sysB = sysB.rename(columns={"note_id": "case"})
 
-    if analysis_type == 'entity':
-        sysA["label"] = 'concept'
-        sysB["label"] = 'concept'
-        cols_to_keep = ['begin', 'end', 'case', 'label']
-    elif analysis_type == 'full':
-        sysA["label"] = sysA["cui"]
-        sysB["label"] = sysB["cui"]
-        cols_to_keep = ['begin', 'end', 'case', 'value', 'label']
-    elif analysis_type == 'cui':
-        sysA["label"] = sysA["cui"]
-        sysB["label"] = sysA["cui"]
-        cols_to_keep = ['case', 'cui', 'label']
+    sysA["label"] = 'concept'
+    sysB["label"] = 'concept'
+    cols_to_keep = ['begin', 'end', 'case', 'label']
 
     sysA = sysA[cols_to_keep]
     sysB = sysB[cols_to_keep]
 
-    if analysis_type == 'entity':
-        labels = ["concept"]
-    elif analysis_type in ['cui', 'full']:
-        labels = list(set(ann["value"].tolist()))
+    labels = ["concept"]
 
     sys_a2 = list()
     sys_b2 = list()
     sys_ab2 = list()
-    ann2 = list()
     s_a2 = list()
     s_b2 = list()
     sys_ab1_ab3 = list()
 
-    a2 = list()
-    
-    cvals = list()
-    
     a = list(sysA.itertuples(index=False))
     b = list(sysB.itertuples(index=False))
 
-    a2 = get_reference_vector(analysis_type, corpus, filter_semtype, semtype)
-
+    ref = get_reference_vector(analysis_type, corpus, filter_semtype, semtype)
+    
     for k, v in docs.items():
 
         # get for Aright/Awrong and Bright/Bwrong
@@ -743,8 +707,7 @@ def vectorized_complementarity(r: object, analysis_type: str, corpus: str, c: tu
         sys_ab1 = label_vector(v, s_ab1, labels)
         sys_ab2.append(sys_ab1)
         
-        # in one set or other but not both for negative values
-        # NB: FN is inherently antisymetric for FP
+        # in both sets and in one set or other but not both for all negative values
         s_ab2 = list(set(s_a1).symmetric_difference(set(s_b1)))
         s_ab1_ab2 = list(set(s_ab1).union(set(s_ab2)))
         
@@ -758,11 +721,11 @@ def vectorized_complementarity(r: object, analysis_type: str, corpus: str, c: tu
     sys_ab3 = np.concatenate(sys_ab2).ravel()
     sys_ab1_ab4 = np.concatenate(sys_ab1_ab3).ravel()
 
-    _, _, FP, _ = confused(sp.COO(sys_ab3), sp.COO(a2))
-    _, _, _, FN = confused(sp.COO(sys_ab1_ab4), sp.COO(a2))
+    _, _, FP, _ = confused(sp.COO(sys_ab3), sp.COO(ref))
+    _, _, _, FN = confused(sp.COO(sys_ab1_ab4), sp.COO(ref))
 
-    _, _, aFP, aFN = confused(sp.COO(s_a2), sp.COO(a2))
-    _, _, bFP, bFN = confused(sp.COO(s_b2), sp.COO(a2))
+    _, _, aFP, aFN = confused(sp.COO(s_a2), sp.COO(ref))
+    _, _, bFP, bFN = confused(sp.COO(s_b2), sp.COO(ref))
 
     b_over_a, a_over_b, mean_comp = complementarity_measures(FN, FP, aFN, aFP, bFN, bFP)
 
@@ -1391,8 +1354,8 @@ def get_docs(corpus):
         df['note_id'] = pd.to_numeric(df['note_id'])
     
     subset = df[['note_id', 'len_doc']]
-    docs = subset.set_index('note_id')['len_doc'].to_dict()
-    return docs
+    return subset.set_index('note_id')['len_doc'].to_dict()
+
 
 def set_labels(analysis_type, df):
     if analysis_type == 'entity':   
@@ -1425,9 +1388,9 @@ def get_ref_ann(analysis_type, corpus, filter_semtype, semtype = None):
         cols_to_keep = ['case', 'label']
     elif analysis_type == 'full':
         cols_to_keep = ['begin', 'end', 'case', 'label']
-    ann = ann[cols_to_keep]
-    
-    return ann
+        
+    return ann[cols_to_keep]
+
 
 #@ft.lru_cache(maxsize=None)
 def get_sys_ann(analysis_type, r):
@@ -1444,8 +1407,8 @@ def get_sys_ann(analysis_type, r):
     elif analysis_type == 'cui':
         cols_to_keep = ['case', 'label']
     
-    sys = sys[cols_to_keep]
-    return sys
+    return sys[cols_to_keep]
+
 
 @ft.lru_cache(maxsize=None)
 def get_metrics(boolean_expression: str, analysis_type: str, corpus: str, run_type: str, filter_semtype, semtype = None):
@@ -1623,10 +1586,6 @@ def get_merge_data(boolean_expression: str, analysis_type: str, corpus: str, run
                  analysis_type (string value of: 'entity', 'cui', 'full') used to filter set of reference and system annotations 
         :return: dictionary with values needed for confusion matrix
     """
-    if filter_semtype:
-        ann = get_ref_ann(analysis_type, corpus, filter_semtype, semtype)
-    else: 
-        ann = get_ref_ann(analysis_type, corpus, filter_semtype)
 
 
     sentence = Sentence(boolean_expression)   
@@ -1670,9 +1629,7 @@ def get_merge_data(boolean_expression: str, analysis_type: str, corpus: str, run
 
 @ft.lru_cache(maxsize=None)
 def get_reference_vector(analysis_type, corpus, filter_semtype, semtype = None):
-    ref_ann = get_ref_ann(analysis_type, corpus, filter_semtype, semtype)
-
-    df = ref_ann
+    ref = get_ref_ann(analysis_type, corpus, filter_semtype, semtype)
     
     if 'entity' in analysis_type: 
         cols_to_keep = ['begin', 'end', 'case', 'label']
@@ -1683,9 +1640,7 @@ def get_reference_vector(analysis_type, corpus, filter_semtype, semtype = None):
      
     labels = get_labels(analysis_type, corpus, filter_semtype, semtype)
     
-    df = df.drop_duplicates(subset=cols_to_keep)
-    ref = df[cols_to_keep]
-    
+    ref= ref[cols_to_keep].drop_duplicates(subset=cols_to_keep)
     test = vectorized_annotations(ref, analysis_type, labels)
     
     if analysis_type != 'cui':
@@ -1886,6 +1841,56 @@ def ad_hoc_sys(statement, analysis_type, corpus, metrics = False, semtype = None
 
     return sys
 
+def test(c, semtype):
+    print('complementarity between:', c)
+    
+    r.nameA = c[0]
+    r.nameB = c[1]
+
+    r.sysA = ad_hoc_sys(c[0], analysis_type, corpus, False, semtype) # c[0]
+    r.sysB = ad_hoc_sys(c[1], analysis_type, corpus, False, semtype) # c[1]
+
+    out = vectorized_complementarity(r, analysis_type, corpus, c, filter_semtype, semtype)
+    # --> get standard metrics
+
+    print('(' + c[0] + '&' + c[1] + ')')
+    print('(' + c[0] + '|' + c[1] + ')')
+
+    statement = '(' + c[0] + '&' + c[1] + ')'
+
+    and_ = ad_hoc_sys(statement, analysis_type, corpus, True, semtype)
+
+    and_['merge'] = statement
+    n = statement.count('&') + statement.count('|') + 1 
+    and_['n_terms'] = n
+
+    statement = '(' + c[0] + '|' + c[1] + ')'
+
+    or_ = ad_hoc_sys(statement, analysis_type, corpus, True, semtype)
+
+    or_['merge'] = statement
+    n = statement.count('&') + statement.count('|') + 1 
+    or_['n_terms'] = n
+
+    # --> end standard metrics
+
+    out['semgroup'] = semtype
+
+    out['precision_and'] = and_['precision']
+    out['recall_and'] = and_['recall']
+    out['F1_and'] = and_['F1']
+    out['merge_and'] = and_['merge']
+    
+    out['precision_or'] = or_['precision']
+    out['recall_or'] = or_['recall']
+    out['F1_or'] = or_['F1']
+    out['merge_or'] = or_['merge']
+    out['nterms'] = n
+
+
+    with open(data_out / file_out, 'a') as f:
+        out.to_csv(f, header=f.tell()==0)
+
 def main():
     '''
         Control for:
@@ -1950,14 +1955,23 @@ def main():
 
         def ad_hoc(analysis_type, corpus, systems):
            
-            df = pd.DataFrame()
+            now = datetime.now()
+            timestamp = datetime.timestamp(now)
+            file_out = 'complement_' + corpus + '_filter_semtype_' + str(filter_semtype) + '_' + str(timestamp) +'.csv'
+            
             if filter_semtype:
                 for semtype in semtypes:
                     test = get_valid_systems(systems, semtype)
                     expressions = get_ensemble_pairs(test)
                     print('SYSTEMS FOR SEMTYPE', semtype, 'ARE', test)
-
+                    
+                    #inputs = tqdm(expressions)
+                    #Parallel(backend="multiprocessing", n_jobs=num_cores)(delayed(test)(i, semtype) 
+                    #                                    for i in inputs)
+                     
+                     
                     for c in expressions:
+
                         print('complementarity between:', c)
                         
                         r.nameA = c[0]
@@ -1966,6 +1980,7 @@ def main():
                         r.sysA = ad_hoc_sys(c[0], analysis_type, corpus, False, semtype) # c[0]
                         r.sysB = ad_hoc_sys(c[1], analysis_type, corpus, False, semtype) # c[1]
 
+                        out = vectorized_complementarity(r, analysis_type, corpus, c, filter_semtype, semtype)
                         # --> get standard metrics
                     
                         print('(' + c[0] + '&' + c[1] + ')')
@@ -1989,7 +2004,6 @@ def main():
 
                         # --> end standard metrics
 
-                        out = vectorized_complementarity(r, analysis_type, corpus, c, filter_semtype, semtype)
                         out['semgroup'] = semtype
 
                         out['precision_and'] = and_['precision']
@@ -2003,8 +2017,63 @@ def main():
                         out['merge_or'] = or_['merge']
                         out['nterms'] = n
 
-                        frames = [df, out]
-                        df = pd.concat(frames, ignore_index=True, sort=False) 
+                        with open(data_out / file_out, 'a') as f:
+                            out.to_csv(f, header=f.tell()==0)
+                    
+                    
+                    def test_(c):
+                        print('complementarity between:', c)
+                        
+                        r.nameA = c[0]
+                        r.nameB = c[1]
+
+                        r.sysA = ad_hoc_sys(c[0], analysis_type, corpus, False, semtype) # c[0]
+                        r.sysB = ad_hoc_sys(c[1], analysis_type, corpus, False, semtype) # c[1]
+
+                        out = vectorized_complementarity(r, analysis_type, corpus, c, filter_semtype, semtype)
+                        # --> get standard metrics
+                    
+                        print('(' + c[0] + '&' + c[1] + ')')
+                        print('(' + c[0] + '|' + c[1] + ')')
+
+                        statement = '(' + c[0] + '&' + c[1] + ')'
+
+                        and_ = ad_hoc_sys(statement, analysis_type, corpus, True, semtype)
+
+                        and_['merge'] = statement
+                        n = statement.count('&') + statement.count('|') + 1 
+                        and_['n_terms'] = n
+
+                        statement = '(' + c[0] + '|' + c[1] + ')'
+
+                        or_ = ad_hoc_sys(statement, analysis_type, corpus, True, semtype)
+
+                        or_['merge'] = statement
+                        n = statement.count('&') + statement.count('|') + 1 
+                        or_['n_terms'] = n
+
+                        # --> end standard metrics
+
+                        out['semgroup'] = semtype
+
+                        out['precision_and'] = and_['precision']
+                        out['recall_and'] = and_['recall']
+                        out['F1_and'] = and_['F1']
+                        out['merge_and'] = and_['merge']
+                        
+                        out['precision_or'] = or_['precision']
+                        out['recall_or'] = or_['recall']
+                        out['F1_or'] = or_['F1']
+                        out['merge_or'] = or_['merge']
+                        out['nterms'] = n
+
+
+                        with open(data_out / file_out, 'a') as f:
+                            out.to_csv(f, header=f.tell()==0)
+
+                        #frames = [df, out]
+                        #df = pd.concat(frames, ignore_index=True, sort=False) 
+                        #return out
 
 
             else:
@@ -2062,20 +2131,13 @@ def main():
                     out['semgroup'] = 'All groups'
                     frames = [df, out]
                     df = pd.concat(frames, ignore_index=True, sort=False) 
-            
-            now = datetime.now()
-            timestamp = datetime.timestamp(now)
-               
-            file = 'complement_' + corpus + '_filter_semtype_' + str(filter_semtype) + '_' + str(timestamp) +'.csv'
-            df.to_csv(data_out / file)
-            print(df)
-        
         
         ad_hoc(analysis_type, corpus, systems)
 
 if __name__ == '__main__':
-    # %load_ext memory_profiler
-    get_ipython().run_line_magic('prun', 'main()')
+    #%load_ext memory_profiler
+    %px main()
+    #get_ipython().run_line_magic('prun', 'main()')
     #%lprun -f vectorized_complementarity -f label_vector main()
     print('done!')
 
