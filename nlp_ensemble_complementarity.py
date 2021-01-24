@@ -567,12 +567,13 @@ def vectorized_annotations(ann, analysis_type, labels):
     docs = get_docs(corpus)
     out = []
     
-    if analysis_type != 'cui':
-        ann1 = list(ann.itertuples(index=False))
+    #if analysis_type != 'cui':
+    #    ann1 = list(ann.itertuples(index=False))
     
     for k, v in docs.items():
         if analysis_type != 'cui':
-            a1 = [i for i in ann1 if i.case == k]
+            a1 = list(ann.loc[ann.case == k].itertuples(index=False))
+            #a1 = [i for i in ann1 if i.case == k]
             a = label_vector(v, a1, labels)
             out.append(a)
         else:
@@ -592,13 +593,14 @@ def vectorized_cooccurences(r: object, analysis_type: str, corpus: str, filter_s
     sys2 = list()
     s2 = list()
 
-    if analysis_type != 'cui':
-        s = list(sys.itertuples(index=False))
+    #if analysis_type != 'cui':
+    #    s = list(sys.itertuples(index=False))
     
     for k, v in docs.items():
 
         if analysis_type != 'cui':
-            s1 = [i for i in s if i.case==k] # list(sys.loc[sys.case == docs[n][0]].itertuples(index=False))
+            s1 = list(sys.loc[sys.case == k].itertuples(index=False))
+            #s1 = [i for i in s if i.case==k] # list(sys.loc[sys.case == docs[n][0]].itertuples(index=False))
             sys1 = label_vector(v, s1, labels)
             sys2.append(sys1)
         else:
@@ -663,16 +665,18 @@ def vectorized_complementarity(r: object, analysis_type: str, corpus: str, filte
     s_b2 = list()
     sys_ab1_ab3 = list()
 
-    a = list(sysA.itertuples(index=False))
-    b = list(sysB.itertuples(index=False))
+    #a = list(sysA.itertuples(index=False))
+    #b = list(sysB.itertuples(index=False))
 
     ref = get_reference_vector(analysis_type, corpus, filter_semtype, semtype)
     
     for k, v in docs.items():
 
         # get for Aright/Awrong and Bright/Bwrong
-        s_a1 = [i for i in a if i.case==k]##list(sysA.loc[sysA.case == docs[n][0]].itertuples(index=False))
-        s_b1 = [i for i in b if i.case==k]# list(sysB.loc[sysB.case == docs[n][0]].itertuples(index=False))
+        s_a1 = list(sysA.loc[sysA.case == k].itertuples(index=False))
+        s_b1 = list(sysB.loc[sysB.case == k].itertuples(index=False))
+        #s_a1 = [i for i in a if i.case==k]##list(sysA.loc[sysA.case == docs[n][0]].itertuples(index=False))
+        #s_b1 = [i for i in b if i.case==k]# list(sysB.loc[sysB.case == docs[n][0]].itertuples(index=False))
         sys_a1 = label_vector(v, s_a1, labels)
         sys_b1 = label_vector(v, s_b1, labels)
 
