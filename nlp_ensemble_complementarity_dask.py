@@ -1809,7 +1809,98 @@ def ad_hoc_sys(statement, analysis_type, corpus, metrics = False, semtype = None
     return sys
 
     
-def main():
+def main(c):
+   
+    #now = datetime.now()
+    #timestamp = datetime.timestamp(now)
+    #file_out = 'complement_' + corpus + '_filter_semtype_' + str(filter_semtype) + '_.csv'
+    class Results(object):
+        def __init__(self):
+            self.sysA = pd.DataFrame() 
+            self.sysB = pd.DataFrame() 
+            self.nameA = ''
+            self.nameB = ''
+        
+    r = Results()
+
+    #for semtype in semtypes:
+   # test = get_valid_systems(systems, semtype)
+    #expressions = get_ensemble_pairs(test)
+
+    print('SYSTEMS FOR SEMTYPE', semtype, 'ARE', test)
+        
+
+    #for c in expressions:
+
+    print('complementarity between:', c)
+    
+    r.nameA = c[0]
+    r.nameB = c[1]
+
+    r.sysA = ad_hoc_sys(c[0], analysis_type, corpus, False, semtype) # c[0]
+    r.sysB = ad_hoc_sys(c[1], analysis_type, corpus, False, semtype) # c[1]
+
+    out = vectorized_complementarity(r, analysis_type, corpus, filter_semtype, semtype)
+    # --> get standard metrics
+
+    print('(' + c[0] + '&' + c[1] + ')')
+    print('(' + c[0] + '|' + c[1] + ')')
+
+    statement = '(' + c[0] + '&' + c[1] + ')'
+
+    and_ = ad_hoc_sys(statement, analysis_type, corpus, True, semtype)
+
+    and_['merge'] = statement
+    n = statement.count('&') + statement.count('|') + 1 
+    and_['n_terms'] = n
+    and_['p_ci'] = str((and_['p_lower_bound'], and_['p_upper_bound'])) 
+    and_['r_ci'] = str((and_['r_lower_bound'], and_['r_upper_bound']))  
+    and_['f_ci'] = str((and_['f_lower_bound'], and_['f_upper_bound'])) 
+
+    statement = '(' + c[0] + '|' + c[1] + ')'
+
+    or_ = ad_hoc_sys(statement, analysis_type, corpus, True, semtype)
+
+    or_['merge'] = statement
+    n = statement.count('&') + statement.count('|') + 1 
+    or_['n_terms'] = n
+    or_['p_ci'] = str((or_['p_lower_bound'], or_['p_upper_bound'])) 
+    or_['r_ci'] = str((or_['r_lower_bound'], or_['r_upper_bound']))  
+    or_['f_ci'] = str((or_['f_lower_bound'], or_['f_upper_bound'])) 
+
+    # --> end standard metrics
+
+    out['semgroup'] = semtype
+
+    out['precision_and'] = and_['precision']
+    out['recall_and'] = and_['recall']
+    out['F1_and'] = and_['F1']
+    out['merge_and'] = and_['merge']
+    out['p_ci_and'] = and_['p_ci']
+    out['r_ci_and'] = and_['r_ci']
+    out['f_ci_and'] = and_['f_ci']
+    
+    out['precision_or'] = or_['precision']
+    out['recall_or'] = or_['recall']
+    out['f1_or'] = or_['F1']
+    out['merge_or'] = or_['merge']
+    out['p_ci_or'] = or_['p_ci']
+    out['r_ci_or'] = or_['r_ci']
+    out['f_ci_or'] = or_['f_ci']
+    out['nterms'] = n
+
+    with open(data_out / file_out, 'a') as f:
+        out.to_csv(f, header=f.tell()==0)
+
+if __name__ == '__main__':
+
+    '''
+    # %load_ext memory_profiler
+    get_ipython().run_line_magic('prun', 'main()')
+
+    #%lprun -f vectorized_complementarity -f label_vector main()
+    print('done!')
+    '''
     now = datetime.now()
     timestamp = datetime.timestamp(now)
     file_out = 'complement_' + corpus + '_filter_semtype_' + str(filter_semtype) + '_' + str(timestamp) +'.csv'
@@ -1827,76 +1918,12 @@ def main():
         expressions = get_ensemble_pairs(test)
     
         print('SYSTEMS FOR SEMTYPE', semtype, 'ARE', test)
-            
+        
+        with joblib.parallel_backend('dask'):
 
-        for c in expressions:
-            print('complementarity between:', c)
-            
-            r.nameA = c[0]
-            r.nameB = c[1]
-
-            r.sysA = ad_hoc_sys(c[0], analysis_type, corpus, False, semtype) # c[0]
-            r.sysB = ad_hoc_sys(c[1], analysis_type, corpus, False, semtype) # c[1]
-
-            out = vectorized_complementarity(r, analysis_type, corpus, filter_semtype, semtype)
-            # --> get standard metrics
-
-            print('(' + c[0] + '&' + c[1] + ')')
-            print('(' + c[0] + '|' + c[1] + ')')
-
-            statement = '(' + c[0] + '&' + c[1] + ')'
-
-            and_ = ad_hoc_sys(statement, analysis_type, corpus, True, semtype)
-
-            and_['merge'] = statement
-            n = statement.count('&') + statement.count('|') + 1 
-            and_['n_terms'] = n
-            and_['p_ci'] = str((and_['p_lower_bound'], and_['p_upper_bound'])) 
-            and_['r_ci'] = str((and_['r_lower_bound'], and_['r_upper_bound']))  
-            and_['f_ci'] = str((and_['f_lower_bound'], and_['f_upper_bound'])) 
-
-            statement = '(' + c[0] + '|' + c[1] + ')'
-
-            or_ = ad_hoc_sys(statement, analysis_type, corpus, True, semtype)
-
-            or_['merge'] = statement
-            n = statement.count('&') + statement.count('|') + 1 
-            or_['n_terms'] = n
-            or_['p_ci'] = str((or_['p_lower_bound'], or_['p_upper_bound'])) 
-            or_['r_ci'] = str((or_['r_lower_bound'], or_['r_upper_bound']))  
-            or_['f_ci'] = str((or_['f_lower_bound'], or_['f_upper_bound'])) 
-
-            # --> end standard metrics
-
-            out['semgroup'] = semtype
-
-            out['precision_and'] = and_['precision']
-            out['recall_and'] = and_['recall']
-            out['F1_and'] = and_['F1']
-            out['merge_and'] = and_['merge']
-            out['p_ci_and'] = and_['p_ci']
-            out['r_ci_and'] = and_['r_ci']
-            out['f_ci_and'] = and_['f_ci']
-            
-            out['precision_or'] = or_['precision']
-            out['recall_or'] = or_['recall']
-            out['f1_or'] = or_['F1']
-            out['merge_or'] = or_['merge']
-            out['p_ci_or'] = or_['p_ci']
-            out['r_ci_or'] = or_['r_ci']
-            out['f_ci_or'] = or_['f_ci']
-            out['nterms'] = n
-
-            with open(data_out / file_out, 'a') as f:
-                out.to_csv(f, header=f.tell()==0)
-
-if __name__ == '__main__':
+            #joblib.Parallel(verbose=10)(joblib.delayed(main)(c) for c in expressions)
+            joblib.Parallel(verbose=10)(joblib.delayed(main)(c) for c in expressions)
 
 
-    # %load_ext memory_profiler
-    get_ipython().run_line_magic('prun', 'main()')
-
-    #%lprun -f vectorized_complementarity -f label_vector main()
-    print('done!')
 
 
