@@ -572,7 +572,7 @@ def vectorized_annotations(ann, analysis_type, labels):
     
     for k, v in docs.items():
         if analysis_type != 'cui':
-            a1 = list(ann.loc[ann.case == k].itertuples(index=False))
+            a1 = list(ann.loc[ann.case==k].itertuples(index=False))
             #a1 = [i for i in ann1 if i.case == k]
             a = label_vector(v, a1, labels)
             out.append(a)
@@ -599,7 +599,7 @@ def vectorized_cooccurences(r: object, analysis_type: str, corpus: str, filter_s
     for k, v in docs.items():
 
         if analysis_type != 'cui':
-            s1 = list(sys.loc[sys.case == k].itertuples(index=False))
+            s1 = list(sys.loc[sys.case==k].itertuples(index=False))
             #s1 = [i for i in s if i.case==k] # list(sys.loc[sys.case == docs[n][0]].itertuples(index=False))
             sys1 = label_vector(v, s1, labels)
             sys2.append(sys1)
@@ -673,8 +673,8 @@ def vectorized_complementarity(r: object, analysis_type: str, corpus: str, filte
     for k, v in docs.items():
 
         # get for Aright/Awrong and Bright/Bwrong
-        s_a1 = list(sysA.loc[sysA.case == k].itertuples(index=False))
-        s_b1 = list(sysB.loc[sysB.case == k].itertuples(index=False))
+        s_a1 = list(sysA.loc[sysA.case==k].itertuples(index=False))
+        s_b1 = list(sysB.loc[sysB.case==k].itertuples(index=False))
         #s_a1 = [i for i in a if i.case==k]##list(sysA.loc[sysA.case == docs[n][0]].itertuples(index=False))
         #s_b1 = [i for i in b if i.case==k]# list(sysB.loc[sysB.case == docs[n][0]].itertuples(index=False))
         sys_a1 = label_vector(v, s_a1, labels)
@@ -835,7 +835,7 @@ def get_metric_data(analysis_type: str, corpus: str):
 
     sys_ann = sys_ann.rename(columns={"semtype": "semtypes"})
     
-    sql = "SELECT * FROM " + ref_table #+ " where semtype in('Anatomy', 'Chemicals_and_drugs')"a
+    sql = "SELECT start, end, file, semtype FROM " + ref_table #+ " where semtype in('Anatomy', 'Chemicals_and_drugs')"a
     
     ref_ann = pd.read_sql(sql, con=engine)
     ref_ann = ref_ann.drop_duplicates()
@@ -847,14 +847,13 @@ def get_metric_data(analysis_type: str, corpus: str):
         sys_ann['note_id'] = pd.to_numeric(sys_ann['note_id'])
         sys_ann = sys_ann.loc[sys_ann.note_id.isin(cases)]
 
+    sys_ann = sys_ann[['begin', 'end', 'score', 'note_id', 'semtypes', 'system']]
     sys_ann = sys_ann.drop_duplicates()
 
     ref_ann, _ = reduce_mem_usage(ref_ann)
     sys_ann, _ = reduce_mem_usage(sys_ann)
- 
     
     return ref_ann, sys_ann
-
 
 
 def geometric_mean(metrics):
@@ -988,7 +987,7 @@ def get_sys_data(system: str, analysis_type: str, corpus: str, filter_semtype, s
    
     _, data = get_metric_data(analysis_type, corpus)
     
-    out = data.loc[data.system == system]
+    out = data.loc[data.system==system]
     
     if filter_semtype:
         st = SemanticTypes([semtype], corpus).get_system_type(system)
@@ -1004,10 +1003,10 @@ def get_sys_data(system: str, analysis_type: str, corpus: str, filter_semtype, s
             out = out.loc[out.semtypes.isin(st)]
             
         else:
-            out = out.loc[out.system == system]
+            out = out.loc[out.system==system]
             
         if system == 'quick_umls':
-            out = out.loc[(out.score.astype(float) >= 0.8) & ((out.type == 'concept_jaccard_score_False')|(out.type=='concept'))]
+            out = out.loc[out.score.astype(float) >= 0.8]
         
         if system == 'metamap':
             out = out.loc[out.score.abs().astype(int) >= 800]
@@ -1020,7 +1019,7 @@ def get_sys_data(system: str, analysis_type: str, corpus: str, filter_semtype, s
             cols_to_keep = ['begin', 'end', 'cui', 'note_id', 'system']
             
         if analysis_type in ['cui','full']:
-            out = out.loc[out.cui.str.startswith("C") == True]
+            out = out.loc[out.cui.str.startswith("C")==True]
 
         out = out[cols_to_keep]
     
@@ -1039,7 +1038,7 @@ def disambiguate(df):
         data = []
         out = pd.DataFrame()
         
-        test = df.loc[df.note_id == case].copy()
+        test = df.loc[df.note_id==case].copy()
         
         for row in test.itertuples():
 
@@ -1086,7 +1085,7 @@ def vote(df, systems):
     for case in cases:
         i = 0
         
-        test = df.loc[df.case == case].copy()
+        test = df.loc[df.case==case].copy()
         
         for row in test.itertuples():
 
@@ -1443,7 +1442,7 @@ def get_metrics(boolean_expression: str, analysis_type: str, corpus: str, run_ty
             d = cm_dict(FN, FP, TP, system_n, reference_n)
             
         else:
-            d = dict()
+            d = {}
             d['F1'] = 0
             d['precision'] = 0 
             d['recall'] = 0

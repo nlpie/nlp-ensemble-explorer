@@ -40,6 +40,14 @@ from sklearn.metrics import classification_report, confusion_matrix
 from scipy import sparse
 import statistics as s
 from sqlite3 import connect
+import joblib
+from dask.distributed import Client
+
+# If you have a remote cluster running Dask
+# client = Client('tcp://scheduler-address:8786')
+
+# If you want Dask to set itself up on your personal computer
+client = Client(processes=False)
 
 # The cell below contains the configurable parameters to ensure that our ensemble explorer runs properaly on your machine. 
 # Please read carfully through steps (1-11) before running the rest of the cells.
@@ -107,7 +115,7 @@ system_annotation = sys_data(corpus, analysis_type)
 #engine_request = str(database_type)+'://'+database_username+':'+database_password+"@"+database_url+'/'+database_name
 #engine = create_engine(engine_request, pool_pre_ping=True, pool_size=20, max_overflow=30)
 #engine = engine_request
-engine = connect('data/medmentions.sqlite')
+#engine = connect('data/medmentions.sqlite')
 
 # TODO: move to click param
 # STEP-(8A): FILTER BY SEMTYPE
@@ -194,10 +202,12 @@ class SemanticTypes(object):
     :params: semtypes list from corpus, system to query
     :return: list of equivalent system semtypes 
     '''
-    
+   
+ 
     def __init__(self, semtypes, corpus):
         self = self
 
+        engine = connect('data/medmentions.sqlite')
         if corpus == 'medmentions':
             sql = "SELECT st.tui, abbreviation, clamp_name, ctakes_name FROM semantic_groups sg join semantic_types st on sg.tui = st.tui where group_name in ({})".format(', '.join(['?' for _ in semtypes]))  
         else:
@@ -823,7 +833,9 @@ def cm_dict(ref_only: int, system_only: int, ref_system_match: int, system_n: in
 
 @ft.lru_cache(maxsize=None)
 def get_metric_data(analysis_type: str, corpus: str):
-   
+  
+    engine = connect('data/medmentions.sqlite')
+
     usys_file, ref_table = AnalysisConfig().corpus_config()
     #systems = AnalysisConfig().systems
    
@@ -835,7 +847,7 @@ def get_metric_data(analysis_type: str, corpus: str):
 
     sys_ann = sys_ann.rename(columns={"semtype": "semtypes"})
     
-    sql = "SELECT * FROM " + ref_table #+ " where semtype in('Anatomy', 'Chemicals_and_drugs')"a
+    sql = "SELECT start, end, file, semtype FROM " + ref_table #+ " where semtype in('Anatomy', 'Chemicals_and_drugs')"a
     
     ref_ann = pd.read_sql(sql, con=engine)
     ref_ann = ref_ann.drop_duplicates()
@@ -847,6 +859,7 @@ def get_metric_data(analysis_type: str, corpus: str):
         sys_ann['note_id'] = pd.to_numeric(sys_ann['note_id'])
         sys_ann = sys_ann.loc[sys_ann.note_id.isin(cases)]
 
+    sys_ann = sys_ann[['begin', 'end', 'score', 'note_id', 'semtypes', 'system']]
     sys_ann = sys_ann.drop_duplicates()
 
     ref_ann, _ = reduce_mem_usage(ref_ann)
@@ -1007,7 +1020,7 @@ def get_sys_data(system: str, analysis_type: str, corpus: str, filter_semtype, s
             out = out.loc[out.system == system]
             
         if system == 'quick_umls':
-            out = out.loc[(out.score.astype(float) >= 0.8) & ((out.type == 'concept_jaccard_score_False')|(out.type=='concept'))]
+            out = out.loc[out.score.astype(float) >= 0.8]
         
         if system == 'metamap':
             out = out.loc[out.score.abs().astype(int) >= 800]
@@ -1335,7 +1348,9 @@ class Sentence(object):
 
 @ft.lru_cache(maxsize=None)
 def get_docs(corpus):
-    
+   
+    engine = connect('data/medmentions.sqlite')
+
     # KLUDGE!!!
     if corpus == 'ray_test':
         corpus = 'fairview'
@@ -1443,7 +1458,7 @@ def get_metrics(boolean_expression: str, analysis_type: str, corpus: str, run_ty
             d = cm_dict(FN, FP, TP, system_n, reference_n)
             
         else:
-            d = dict()
+            d = {}
             d['F1'] = 0
             d['precision'] = 0 
             d['recall'] = 0
@@ -1809,7 +1824,7 @@ def ad_hoc_sys(statement, analysis_type, corpus, metrics = False, semtype = None
     return sys
 
     
-def main(c):
+def main(semtype, c):
    
     #now = datetime.now()
     #timestamp = datetime.timestamp(now)
@@ -1827,7 +1842,7 @@ def main(c):
    # test = get_valid_systems(systems, semtype)
     #expressions = get_ensemble_pairs(test)
 
-    print('SYSTEMS FOR SEMTYPE', semtype, 'ARE', test)
+    #print('SYSTEMS FOR SEMTYPE', semtype)
         
 
     #for c in expressions:
@@ -1901,6 +1916,8 @@ if __name__ == '__main__':
     #%lprun -f vectorized_complementarity -f label_vector main()
     print('done!')
     '''
+    start = time.time()
+
     now = datetime.now()
     timestamp = datetime.timestamp(now)
     file_out = 'complement_' + corpus + '_filter_semtype_' + str(filter_semtype) + '_' + str(timestamp) +'.csv'
@@ -1913,17 +1930,20 @@ if __name__ == '__main__':
         
     r = Results()
 
-    for semtype in semtypes:
-        test = get_valid_systems(systems, semtype)
-        expressions = get_ensemble_pairs(test)
+    #for semtype in semtypes:
+    #    test = get_valid_systems(systems, semtype)
+    #    expressions = get_ensemble_pairs(test)
     
-        print('SYSTEMS FOR SEMTYPE', semtype, 'ARE', test)
+    #    print('SYSTEMS FOR SEMTYPE', semtype, 'ARE', test)
         
-        with joblib.parallel_backend('dask'):
+    with joblib.parallel_backend('dask'):
 
             #joblib.Parallel(verbose=10)(joblib.delayed(main)(c) for c in expressions)
-            joblib.Parallel(verbose=10)(joblib.delayed(main)(c) for c in expressions)
+        #joblib.Parallel(verbose=100)(joblib.delayed(main)(semtype, c) for c in get_ensemble_pairs(get_valid_systems(systems, semtype)) for semtype in semtypes)
+        joblib.Parallel(verbose=100)(joblib.delayed(main)(semtype, c) for semtype in semtypes for c in get_ensemble_pairs(get_valid_systems(systems, semtype)))
 
 
+    elapsed = (time.time() - start)
+    print('elapsed:', elapsed)
 
 
