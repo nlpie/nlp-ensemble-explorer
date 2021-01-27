@@ -25,7 +25,6 @@ import pandas as pd
 import numpy as np
 import sparse as sp
 import math
-#import pymysql
 import time 
 import functools as ft
 import operator as op
@@ -55,13 +54,10 @@ client = Client(processes=False)
 
 # STEP-1: CHOOSE YOUR CORPUS
 # TODO: get working with list of corpora
-#corpora = ['mipacq','i2b2','fairview'] #options for concept extraction include 'fairview', 'mipacq' OR 'i2b2'
 
 # cross-system semantic union merge filter for cross system aggregations using custom system annotations file with corpus name and system name using 'ray_test':
 
 # TODO: move to click param
-# need to add semantic type filrering when reading in sys_data
-#corpus = 'ray_test'
 #corpus = 'clinical_trial2'
 #corpus = 'fairview'
 #corpus = 'i2b2'
@@ -131,7 +127,7 @@ def ref_semtypes(filter_semtype, corpus):
         elif corpus == 'i2b2':
             semtypes = ['test,treatment', 'problem']
         elif corpus == 'mipacq':
-            semtypes = ['Anatomy', 'Procedures', 'Disorders,Sign_Symptom', 'Anatomy', 'Chemicals_and_drugs']
+            semtypes = ['Anatomy', 'Procedures', 'Disorders,Sign_Symptom', 'Chemicals_and_drugs']
         elif corpus == 'medmentions':
             semtypes = ['Anatomy', 'Disorders', 'Chemicals & Drugs', 'Procedures']
 
@@ -147,7 +143,7 @@ src_table = 'sofa'
 run_type = 'overlap'
 
 # STEP-11: Specify type of ensemble: merge or vote: used for file naming -> TODO: remove!
-ensemble_type = 'merge'
+ensemble_type = 'vote'
 
 #****** TODO 
 '''
@@ -174,6 +170,14 @@ ensemble_type = 'merge'
 -> confusion matrix for multiclass 
 '''
 
+
+def get_connect(corpus):
+    if corpus == 'medmentions':
+        return connect('data/medmentions.sqlite')
+    else:
+        return connect('data/all_corpora.sqlite')
+
+
 # config class for analysis
 class AnalysisConfig():
     """
@@ -193,6 +197,7 @@ class AnalysisConfig():
         ref_data = table_name
         return usys_data, ref_data
 
+
 analysisConf =  AnalysisConfig()
 
 
@@ -207,11 +212,12 @@ class SemanticTypes(object):
     def __init__(self, semtypes, corpus):
         self = self
 
-        engine = connect('data/medmentions.sqlite')
+        engine = get_connect(corpus)
+        
         if corpus == 'medmentions':
             sql = "SELECT st.tui, abbreviation, clamp_name, ctakes_name FROM semantic_groups sg join semantic_types st on sg.tui = st.tui where group_name in ({})".format(', '.join(['?' for _ in semtypes]))  
         else:
-            sql = "SELECT st.tui, abbreviation, clamp_name, ctakes_name FROM concepts.semantic_groups sg join concepts.semantic_types st on sg.tui = st.tui where " + corpus + "_name in ({})" .format(', '.join(['%s' for _ in semtypes]))  
+            sql = "SELECT st.tui, abbreviation, clamp_name, ctakes_name FROM semantic_groups sg join semantic_types st on sg.tui = st.tui where " + corpus + "_name in ({})" .format(', '.join(['?' for _ in semtypes]))  
         
         stypes = pd.read_sql(sql, params=semtypes, con=engine) 
        
@@ -679,16 +685,50 @@ def vectorized_complementarity(r: object, analysis_type: str, corpus: str, filte
     #b = list(sysB.itertuples(index=False))
 
     ref = get_reference_vector(analysis_type, corpus, filter_semtype, semtype)
+
+    # test optimization
+    '''
+    inter = sysA.merge(sysB, on=['case', 'begin', 'end'])
+
+    leftA = sysA.merge(sysB, how='left', on=['case', 'begin', 'end'], indicator=True)
+    leftB = sysB.merge(sysA, how='left', on=['case', 'begin', 'end'], indicator=True)
+
+    leftA = leftA.loc[leftA["_merge"] == 'left_only']
+    leftB = leftB.loc[leftB["_merge"] == 'left_only']
+
+    symmetric = pd.concat([leftA, leftB, inter])
+    inter['label'] = 'concept'
+    symmetric['label'] = 'concept'
+    
+    labels = get_labels(analysis_type, corpus, filter_semtype, semtype)
+    
+    s_a2 = vectorized_annotations(sysA, analysis_type, labels)
+    s_b2 = vectorized_annotations(sysB, analysis_type, labels)
+    sys_inter = vectorized_annotations(inter, analysis_type, labels)
+    sys_symmetric = vectorized_annotations(symmetric, analysis_type, labels)
+
+    s_a2 = np.concatenate(s_a2).ravel()
+    s_b2 = np.concatenate(s_b2).ravel()
+    sys_inter = np.concatenate(sys_inter).ravel()
+    sys_symmetric = np.concatenate(sys_symmetric).ravel()
+ 
+    _, _, FP, _ = confused(sp.COO(sys_inter), sp.COO(ref))
+    _, _, _, FN = confused(sp.COO(sys_symmetric), sp.COO(ref))
+
+    _, _, aFP, aFN = confused(sp.COO(s_a2), sp.COO(ref))
+    _, _, bFP, bFN = confused(sp.COO(s_b2), sp.COO(ref))
+
+    '''
     
     for k, v in docs.items():
 
         # get for Aright/Awrong and Bright/Bwrong
-        s_a1 = list(sysA.loc[sysA.case == k].itertuples(index=False))
-        s_b1 = list(sysB.loc[sysB.case == k].itertuples(index=False))
+        s_a = list(sysA.loc[sysA.case == k].itertuples(index=False))
+        s_b = list(sysB.loc[sysB.case == k].itertuples(index=False)) 
         #s_a1 = [i for i in a if i.case==k]##list(sysA.loc[sysA.case == docs[n][0]].itertuples(index=False))
         #s_b1 = [i for i in b if i.case==k]# list(sysB.loc[sysB.case == docs[n][0]].itertuples(index=False))
-        sys_a1 = label_vector(v, s_a1, labels)
-        sys_b1 = label_vector(v, s_b1, labels)
+        sys_a1 = label_vector(v, s_a, labels)
+        sys_b1 = label_vector(v, s_b, labels)
 
         sys_a2.append(sys_a1)
         sys_b2.append(sys_b1)
@@ -696,30 +736,35 @@ def vectorized_complementarity(r: object, analysis_type: str, corpus: str, filte
         # intersected list this will give positive values 
         # NB: intersection only gives positive labels, 
         # since systems do not annotate for negative class
-        s_ab1 = list(set(s_a1).intersection(set(s_b1)))
+        s_ab1 = list(set(s_a).intersection(set(s_b)))
 
         sys_ab1 = label_vector(v, s_ab1, labels)
         sys_ab2.append(sys_ab1)
         
         # in both sets and in one set or other but not both for all negative values
-        s_ab2 = list(set(s_a1).symmetric_difference(set(s_b1)))
+        s_ab2 = list(set(s_a).symmetric_difference(set(s_b)))
         s_ab1_ab2 = list(set(s_ab1).union(set(s_ab2)))
         
         sys_ab1_ab2 = label_vector(v, s_ab1_ab2, labels)
         sys_ab1_ab3.append(sys_ab1_ab2)
 
+    
+
     # right/wrong for A and B
     s_a2 = np.concatenate(sys_a2).ravel()
     s_b2 = np.concatenate(sys_b2).ravel()
     
-    sys_ab3 = np.concatenate(sys_ab2).ravel()
-    sys_ab1_ab4 = np.concatenate(sys_ab1_ab3).ravel()
+    inter = np.concatenate(sys_ab2).ravel()
+    symmetric_all = np.concatenate(sys_ab1_ab3).ravel()
 
-    _, _, FP, _ = confused(sp.COO(sys_ab3), sp.COO(ref))
-    _, _, _, FN = confused(sp.COO(sys_ab1_ab4), sp.COO(ref))
+    _, _, FP, _ = confused(sp.COO(inter), sp.COO(ref))
+    _, _, _, FN = confused(sp.COO(symmetric_all), sp.COO(ref))
 
     _, _, aFP, aFN = confused(sp.COO(s_a2), sp.COO(ref))
     _, _, bFP, bFN = confused(sp.COO(s_b2), sp.COO(ref))
+
+    
+
 
     b_over_a, a_over_b, mean_comp = complementarity_measures(FN, FP, aFN, aFP, bFN, bFP)
 
@@ -834,7 +879,7 @@ def cm_dict(ref_only: int, system_only: int, ref_system_match: int, system_n: in
 @ft.lru_cache(maxsize=None)
 def get_metric_data(analysis_type: str, corpus: str):
   
-    engine = connect('data/medmentions.sqlite')
+    engine = get_connect(corpus)
 
     usys_file, ref_table = AnalysisConfig().corpus_config()
     #systems = AnalysisConfig().systems
@@ -1087,36 +1132,18 @@ def disambiguate(df):
     
     return out  
 
-# majority vote -> plurality for entity only, witth tties winning
+# majority vote -> plurality for entity only, with ties winning
 def vote(df, systems):
    
-    df = df.drop_duplicates(subset=['begin', 'end', 'case', 'system'])
-    cases = set(df['case'].tolist())
-    
-    data = []
-    out = pd.DataFrame()
-    
-    for case in cases:
-        i = 0
-        
-        test = df.loc[df.case == case].copy()
-        
-        for row in test.itertuples():
+    key = ["begin", "end", "case"]
+    n = len(systems) // 2
 
-            fx = test.loc[(test.begin == row.begin) & (test.end == row.end)].copy()
+    mask = df.groupby(key)["system"].count() >= n
 
-            n = int(len(systems)/2)
-
-            fx = fx[fx.system.isin(systems)]
-           
-            fx = fx.drop_duplicates()
- 
-            if len(set(fx.system.tolist()))>n:
-                data.append(fx)
-             
-    out = pd.concat(data, axis=0)
-   
-    out = out.drop_duplicates(subset=['begin', 'end', 'case'])
+    out = df.set_index(key)[mask] \
+            .reset_index() \
+            .drop(columns="system") \
+            .drop_duplicates()
     
     return out  
 
@@ -1265,11 +1292,8 @@ class Results(object):
 Incoming Boolean sentences are parsed into a binary tree.
 
 Test expressions to parse:
-
 sentence = '((((A&B)|C)|D)&E)'
-
 sentence = '(E&(D|(C|(A&B))))'
-
 sentence = '(((A|(B&C))|(D&(E&F)))|(H&I))'
 
 """
@@ -1349,8 +1373,8 @@ class Sentence(object):
 @ft.lru_cache(maxsize=None)
 def get_docs(corpus):
    
-    engine = connect('data/medmentions.sqlite')
-
+    engine = get_connect(corpus)
+    
     # KLUDGE!!!
     if corpus == 'ray_test':
         corpus = 'fairview'
@@ -1358,7 +1382,7 @@ def get_docs(corpus):
     if corpus == "medmentions":
         sql = 'select distinct note_id, len_doc from sofas where test=1 and corpus = (?) order by note_id'
     else:
-        sql = 'select distinct note_id, sofa from sofas where corpus = %(corpus)s order by note_id'
+        sql = 'select distinct note_id, sofa from sofas where corpus = (?) order by note_id'
     
     df = pd.read_sql(sql, params={corpus, }, con=engine)
     df.drop_duplicates()
@@ -1638,20 +1662,17 @@ def get_reference_vector(analysis_type, corpus, filter_semtype, semtype = None):
      
     labels = get_labels(analysis_type, corpus, filter_semtype, semtype)
     
-    ref= ref[cols_to_keep].drop_duplicates(subset=cols_to_keep)
+    ref = ref[cols_to_keep].drop_duplicates(subset=cols_to_keep)
     test = vectorized_annotations(ref, analysis_type, labels)
     
     if analysis_type != 'cui':
-        ref =  np.asarray(flatten_list(test), dtype=np.uint8) 
+        ref = np.asarray(flatten_list(test), dtype=np.uint8) 
     else: 
-        ref =  np.asarray(test, dtype=np.int16)
+        ref = np.asarray(test, dtype=np.int16)
 
     return ref
 
 def get_majority_sys(systems, analysis_type, corpus, filter_semtype, semtype):
-    
-    d = {}
-    
     if 'entity' in analysis_type: 
         cols_to_keep = ['begin', 'end', 'case', 'label', 'system']
     elif 'cui' in analysis_type: 
@@ -1678,7 +1699,6 @@ def get_majority_sys(systems, analysis_type, corpus, filter_semtype, semtype):
 
     
 def majority_overlap_vote_out(ref, vote, corpus, semtype = None):   
-    
     class Results(object):
         def __init__(self):
             self.ref = np.array(list())
@@ -1692,7 +1712,6 @@ def majority_overlap_vote_out(ref, vote, corpus, semtype = None):
     ((TP, TN, FP, FN),(p,r,f1)) = vectorized_cooccurences(r, analysis_type, corpus, filter_semtype, semtype)
     
     if analysis_type == 'entity':
-        #TP, TN, FP, FN = confused(vote, ref)
         system_n = TP + FP
         reference_n = TP + FN
 
@@ -1713,44 +1732,39 @@ def majority_overlap_vote_out(ref, vote, corpus, semtype = None):
     return metrics
     
 # control vote run
-def majority_vote(systems, analysis_type, corpus, run_type, filter_semtype, semtypes = None):
-    print(semtypes, systems)
+def majority_vote(test, analysis_type, corpus, run_type, filter_semtype, semtype = None):
 
     if filter_semtype:
         
-        metrics = pd.DataFrame()
-        for semtype in semtypes:
-            test = get_valid_systems(systems, semtype)
-            print('SYSYEMS FOR SEMTYPE', semtype, 'ARE', test)
-            
-            if run_type == 'overlap' and len(test) > 1:
-                ref = get_reference_vector(analysis_type, corpus, filter_semtype, semtype)
-                vote = get_majority_sys(test, analysis_type, corpus, filter_semtype, semtype)
-                labels = get_labels(analysis_type, corpus, filter_semtype, semtype)
+        #for semtype in semtypes:
+        #test = get_valid_systems(systems, semtype)
+        print('SYSYEMS FOR SEMTYPE', semtype, 'ARE', test)
         
-                out = majority_overlap_vote_out(ref, vote, corpus, semtype)
-           
-            if len(test) > 1:
-                out['semgroup'] = semtype
-                out['systems'] = ','.join(test)
-                generate_ensemble_metrics(out, analysis_type, corpus, ensemble_type, filter_semtype, semtype)
-                frames = [metrics, out]
-                metrics = pd.concat(frames, ignore_index=True, sort=False)
+        if run_type == 'overlap' and len(test) > 1:
+            ref = get_reference_vector(analysis_type, corpus, filter_semtype, semtype)
+            vote = get_majority_sys(test, analysis_type, corpus, filter_semtype, semtype)
+            #labels = get_labels(analysis_type, corpus, filter_semtype, semtype)
+    
+            out = majority_overlap_vote_out(ref, vote, corpus, semtype)
+       
+            out['semgroup'] = semtype
+            out['systems'] = ','.join(test)
+            #generate_ensemble_metrics(out, analysis_type, corpus, ensemble_type, filter_semtype, semtype)
+            #frames = [metrics, out]
+            #metrics = pd.concat(frames, ignore_index=True, sort=False)
                 
     else:
         if run_type == 'overlap':
             ref = get_reference_vector(analysis_type, corpus, filter_semtype)
             vote = get_majority_sys(systems, analysis_type, corpus, filter_semtype)
-            labels = get_labels(analysis_type, corpus, filter_semtype)
+            #labels = get_labels(analysis_type, corpus, filter_semtype)
         
-            metrics = majority_overlap_vote_out(ref, vote, corpus)
+            out = majority_overlap_vote_out(ref, vote, corpus)
             
-        metrics['systems'] = ','.join(systems)
-        generate_ensemble_metrics(metrics, analysis_type, corpus, ensemble_type, filter_semtype)
+        out['systems'] = ','.join(systems)
+        #generate_ensemble_metrics(metrics, analysis_type, corpus, ensemble_type, filter_semtype)
     
-    print(metrics)
-    
-    return metrics
+    return out
 
 
 def get_ensemble_combos(systems=['biomedicus', 'clamp', 'ctakes', 'metamap', 'quick_umls']): 
@@ -1772,7 +1786,6 @@ def get_ensemble_combos(systems=['biomedicus', 'clamp', 'ctakes', 'metamap', 'qu
 
 
 def get_ensemble_pairs(systems=['biomedicus', 'clamp', 'ctakes', 'metamap', 'quick_umls']): 
-
     results = get_ensemble_combos(systems)
 
     # return True if number of operators found in expression
@@ -1822,6 +1835,32 @@ def ad_hoc_sys(statement, analysis_type, corpus, metrics = False, semtype = None
     sys = get_merge_data(statement, analysis_type, corpus, run_type, filter_semtype, metrics, semtype)
 
     return sys
+
+
+def main_test():
+
+    out = pd.DataFrame()
+    for semtype in semtypes:
+        for i in range(2, len(systems) + 1):
+            for s in combinations(systems, i):
+                test = get_valid_systems(s, semtype)
+                
+                if len(test) > 1: 
+                    print('SYSYEMS FOR SEMTYPE', semtype, 'ARE', test)
+                    if filter_semtype:
+                        metrics = majority_vote(test, analysis_type, corpus, run_type, filter_semtype, semtype)
+                    else:
+                        metrics = majority_vote(test, analysis_type, corpus, run_type, filter_semtype)
+                        
+                    frames = [out, metrics]
+                    out = pd.concat(frames, ignore_index=True, sort=False)
+                
+        now = datetime.now()
+        timestamp = datetime.timestamp(now)
+
+    file = corpus + '_vote_' + analysis_type + '_' + str(filter_semtype) + '_' + str(timestamp) +'.csv'
+    out.to_csv(data_out / file)
+
 
     
 def main(semtype, c):
@@ -1909,38 +1948,34 @@ def main(semtype, c):
 
 if __name__ == '__main__':
 
-    '''
-    # %load_ext memory_profiler
-    get_ipython().run_line_magic('prun', 'main()')
+    run_ = 'vote'
 
-    #%lprun -f vectorized_complementarity -f label_vector main()
-    print('done!')
-    '''
     start = time.time()
 
     now = datetime.now()
     timestamp = datetime.timestamp(now)
-    file_out = 'complement_' + corpus + '_filter_semtype_' + str(filter_semtype) + '_' + str(timestamp) +'.csv'
-    class Results(object):
-        def __init__(self):
-            self.sysA = pd.DataFrame() 
-            self.sysB = pd.DataFrame() 
-            self.nameA = ''
-            self.nameB = ''
-        
-    r = Results()
 
-    #for semtype in semtypes:
-    #    test = get_valid_systems(systems, semtype)
-    #    expressions = get_ensemble_pairs(test)
-    
-    #    print('SYSTEMS FOR SEMTYPE', semtype, 'ARE', test)
+    if run_ == 'comp':
+        file_out = 'complement_' + corpus + '_filter_semtype_' + str(filter_semtype) + '_' + str(timestamp) +'.csv'
         
-    with joblib.parallel_backend('dask'):
+        class Results(object):
+            def __init__(self):
+                self.sysA = pd.DataFrame() 
+                self.sysB = pd.DataFrame() 
+                self.nameA = ''
+                self.nameB = ''
+            
+        r = Results()
 
-            #joblib.Parallel(verbose=10)(joblib.delayed(main)(c) for c in expressions)
-        #joblib.Parallel(verbose=100)(joblib.delayed(main)(semtype, c) for c in get_ensemble_pairs(get_valid_systems(systems, semtype)) for semtype in semtypes)
-        joblib.Parallel(verbose=100)(joblib.delayed(main)(semtype, c) for semtype in semtypes for c in get_ensemble_pairs(get_valid_systems(systems, semtype)))
+        with joblib.parallel_backend('dask'):
+
+            joblib.Parallel(verbose=100)(joblib.delayed(main)(semtype, c) for semtype in semtypes for c in get_ensemble_pairs(get_valid_systems(systems, semtype)))
+
+
+    elif run_ == 'vote':
+        get_ipython().run_line_magic('prun', 'main_test()')
+         #%lprun -f vote main_test()
+         #get_ipython().run_line_magic('lprun -f vote', 'main_test()')
 
 
     elapsed = (time.time() - start)
