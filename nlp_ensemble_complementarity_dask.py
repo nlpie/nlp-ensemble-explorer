@@ -61,8 +61,8 @@ client = Client(processes=False)
 #corpus = 'clinical_trial2'
 #corpus = 'fairview'
 #corpus = 'i2b2'
-#corpus = 'mipacq'
-corpus = 'medmentions'
+corpus = 'mipacq'
+#corpus = 'medmentions'
 
 # TODO: create config.py file
 # STEP-2: CHOOSE YOUR DATA DIRECTORY; this is where output data will be saved on your machine
@@ -143,7 +143,7 @@ src_table = 'sofa'
 run_type = 'overlap'
 
 # STEP-11: Specify type of ensemble: merge or vote: used for file naming -> TODO: remove!
-ensemble_type = 'vote'
+ensemble_type = 'merge'
 
 #****** TODO 
 '''
@@ -1948,7 +1948,7 @@ def main(semtype, c):
 
 if __name__ == '__main__':
 
-    run_ = 'vote'
+    run_ = 'comp'
 
     start = time.time()
 
@@ -1956,8 +1956,11 @@ if __name__ == '__main__':
     timestamp = datetime.timestamp(now)
 
     if run_ == 'comp':
+        parallel = False
+
         file_out = 'complement_' + corpus + '_filter_semtype_' + str(filter_semtype) + '_' + str(timestamp) +'.csv'
         
+        '''
         class Results(object):
             def __init__(self):
                 self.sysA = pd.DataFrame() 
@@ -1966,11 +1969,23 @@ if __name__ == '__main__':
                 self.nameB = ''
             
         r = Results()
+        '''
 
-        with joblib.parallel_backend('dask'):
+        if parallel:
+            with joblib.parallel_backend('dask'):
 
-            joblib.Parallel(verbose=100)(joblib.delayed(main)(semtype, c) for semtype in semtypes for c in get_ensemble_pairs(get_valid_systems(systems, semtype)))
+                joblib.Parallel(verbose=100)(joblib.delayed(main)(semtype, c) for semtype in semtypes for c in get_ensemble_pairs(get_valid_systems(systems, semtype)))
 
+        else:
+            for semtype in semtypes:
+                test = get_valid_systems(systems, semtype)
+                expressions = get_ensemble_pairs(test)
+    
+                print('NP -> SYSTEMS FOR SEMTYPE', semtype, 'ARE', test)
+
+                for c in expressions:
+                    print('complementarity between:', c)
+                    main(semtype, c)
 
     elif run_ == 'vote':
         get_ipython().run_line_magic('prun', 'main_test()')
