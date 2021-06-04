@@ -81,10 +81,9 @@ analysis_type = 'full' #options include 'entity', 'cui' OR 'full'
 
 # STEP-(6A): ENTER DETAILS FOR ACCESSING MANUAL ANNOTATION DATA
 database_type = 'postgresql+psycopg2' # We use mysql+pymql as default
-database_username = 'gsilver1'
-database_password = 'nej123' 
-database_url = 'd0pconcourse001' # HINT: use localhost if you're running database on your local machine
-#database_name = 'clinical_trial' # Enter database name
+database_username = 'username'
+database_password = 'pw' 
+database_url = 'host_name' # HINT: use localhost if you're running database on your local machine
 database_name = 'covid-19' # Enter database name
 
 def ref_data(corpus):
