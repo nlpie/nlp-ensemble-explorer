@@ -61,8 +61,8 @@ client = Client(processes=False)
 #corpus = 'clinical_trial2'
 #corpus = 'fairview'
 #corpus = 'i2b2'
-corpus = 'mipacq'
-#corpus = 'medmentions'
+#corpus = 'mipacq'
+corpus = 'medmentions'
 
 # TODO: create config.py file
 # STEP-2: CHOOSE YOUR DATA DIRECTORY; this is where output data will be saved on your machine
@@ -143,7 +143,7 @@ src_table = 'sofa'
 run_type = 'overlap'
 
 # STEP-11: Specify type of ensemble: merge or vote: used for file naming -> TODO: remove!
-ensemble_type = 'merge'
+ensemble_type = 'vote' #'merge'
 
 #****** TODO 
 '''
@@ -741,7 +741,7 @@ def vectorized_complementarity(r: object, analysis_type: str, corpus: str, filte
         sys_ab1 = label_vector(v, s_ab1, labels)
         sys_ab2.append(sys_ab1)
         
-        # in both sets and in one set or other but not both for all negative values
+        #  in one set or other but not both for all negative values
         s_ab2 = list(set(s_a).symmetric_difference(set(s_b)))
         s_ab1_ab2 = list(set(s_ab1).union(set(s_ab2)))
         
@@ -884,7 +884,7 @@ def get_metric_data(analysis_type: str, corpus: str):
     usys_file, ref_table = AnalysisConfig().corpus_config()
     #systems = AnalysisConfig().systems
    
-    if corpus != 'medmentiopns':
+    if corpus != 'medmentions':
         sys_ann = pd.read_csv(analysisConf.data_dir + usys_file, dtype={'note_id': str})
     else:
         sys_ann = pd.read_csv(analysisConf.data_dir + usys_file)
@@ -1092,10 +1092,9 @@ def disambiguate(df):
     
     cases = set(df['note_id'].tolist())
     
+    data = []
     for case in cases:
         i = 0
-        data = []
-        out = pd.DataFrame()
         
         test = df.loc[df.note_id == case].copy()
         
@@ -1123,12 +1122,13 @@ def disambiguate(df):
             i += 1
             data.append(fx)
 
-        out = pd.concat(data, axis=0)
-   
+    out = pd.concat(data, axis=0)
+  
     # Remaining ties: randomly reindex to keep random row when dropping duplicates: https://gist.github.com/cadrev/6b91985a1660f26c2742
     out.reset_index(inplace=True)
     out = out.reindex(np.random.permutation(out.index))
-    out = out.drop_duplicates(['begin', 'end', 'note_id', 'length', 'cui'])
+    #out = out.drop_duplicates(['begin', 'end', 'note_id', 'length', 'cui'])
+    out = out.drop_duplicates(['begin', 'end', 'note_id', 'length'])
     
     return out  
 
@@ -1145,7 +1145,8 @@ def vote(df, systems):
             .drop(columns="system") \
             .drop_duplicates()
     
-    return out  
+    return out 
+
 
 @ft.lru_cache(maxsize=None)
 def process_sentence(pt, sentence, analysis_type, corpus, filter_semtype, semtype = None):
@@ -1175,7 +1176,7 @@ def process_sentence(pt, sentence, analysis_type, corpus, filter_semtype, semtyp
         cols_to_keep = ['case', 'overlap']
     
     def evaluate(parseTree):
-        oper = {'&': op.and_, '|': op.or_}
+        oper = {'&': op.and_, '|': op.or_i, '^': op.xor, '~': op.not_}
         
         if parseTree:
             leftC = gevent.spawn(evaluate, parseTree.getLeftChild())
@@ -1255,6 +1256,38 @@ def process_sentence(pt, sentence, analysis_type, corpus, filter_semtype, semtyp
                         else:
                             df = pd.DataFrame(columns=cols_to_keep)
                 
+                if fn == op.xor:
+                    if isinstance(leftC.get(), str) and isinstance(rightC.get(), str):
+                        if not left_sys.empty and not right_sys.empty:
+                            df = left_sys.merge(right_sys, on=cols_to_keep, how='outer', indicator=True)
+                            df = df[cols_to_keep].loc[(df._merge=='left_only')|(df._merge=='right_only')].drop_duplicates(subset=cols_to_keep)
+                        else:
+                            df = pd.DataFrame(columns=cols_to_keep)
+
+                    elif isinstance(leftC.get(), str) and isinstance(rightC.get(), pd.DataFrame):
+                        if not left_sys.empty and not r_sys.empty:
+                            df = left_sys.merge(r_sys, on=cols_to_keep, how='outer', indicator=True)
+                            df = df[cols_to_keep].loc[(df._merge=='left_only')|(df._merge=='right_only')].drop_duplicates(subset=cols_to_keep)
+                        else:
+                            df = pd.DataFrame(columns=cols_to_keep)
+
+                    elif isinstance(leftC.get(), pd.DataFrame) and isinstance(rightC.get(), str):
+                        if not l_sys.empty and not right_sys.empty:
+                            df = l_sys.merge(right_sys, on=cols_to_keep, how='outer', indicator=True)
+                            df = df[cols_to_keep].loc[(df._merge=='left_only')|(df._merge=='right_only')].drop_duplicates(subset=cols_to_keep)
+                        else:
+                            df = pd.DataFrame(columns=cols_to_keep)
+
+                    elif isinstance(leftC.get(), pd.DataFrame) and isinstance(rightC.get(), pd.DataFrame):
+                        if not l_sys.empty and not r_sys.empty:
+                            df = l_sys.merge(r_sys, on=cols_to_keep, how='outer', indicator=True)
+                            df = df[cols_to_keep].loc[(df._merge=='left_only')|(df._merge=='right_only')].drop_duplicates(subset=cols_to_keep)
+                        else:
+                            df = pd.DataFrame(columns=cols_to_keep)
+                
+                if fn == op.not_:
+                    pass
+
                 # get combined system results
                 r.system_merges = df
                 
@@ -1323,11 +1356,11 @@ def buildParseTree(fpexp):
             currentTree.insertLeft('')
             pStack.push(currentTree)
             currentTree = currentTree.getLeftChild()
-        elif i not in ['&', '|', ')']:
+        elif i not in ['&', '|', '^', ')']:
             currentTree.setRootVal(i)
             parent = pStack.pop()
             currentTree = parent
-        elif i in ['&', '|']:
+        elif i in ['&', '|', '^']:
             currentTree.setRootVal(i)
             currentTree.insertRight('')
             pStack.push(currentTree)
@@ -1630,6 +1663,9 @@ def get_merge_data(boolean_expression: str, analysis_type: str, corpus: str, run
             reference_n = TP + FN
 
             d = cm_dict(FN, FP, TP, system_n, reference_n)
+            d['TN'] = TN
+            d['corpus'] = corpus
+
             print(d)
             
         elif run_type == 'exact':
@@ -1841,25 +1877,33 @@ def main_test():
 
     out = pd.DataFrame()
     for semtype in semtypes:
-        for i in range(2, len(systems) + 1):
+        for i in range(1, len(systems) + 1):
             for s in combinations(systems, i):
                 test = get_valid_systems(s, semtype)
-                
-                if len(test) > 1: 
-                    print('SYSYEMS FOR SEMTYPE', semtype, 'ARE', test)
+
+                print('SYSYEMS FOR SEMTYPE', semtype, 'ARE', test)
+                if len(test) == 1:
+                   d = ad_hoc_sys(test[0], analysis_type, corpus, True, semtype)
+                   metrics = pd.DataFrame(d, index=[0])
+
+                   metrics['systems'] = test[0]
+                   metrics['semgroup'] = semtype
+                    
+                elif len(test) > 1: 
                     if filter_semtype:
                         metrics = majority_vote(test, analysis_type, corpus, run_type, filter_semtype, semtype)
                     else:
                         metrics = majority_vote(test, analysis_type, corpus, run_type, filter_semtype)
                         
-                    frames = [out, metrics]
-                    out = pd.concat(frames, ignore_index=True, sort=False)
+                frames = [out, metrics]
+                out = pd.concat(frames, ignore_index=True, sort=False)
                 
         now = datetime.now()
         timestamp = datetime.timestamp(now)
 
+
     file = corpus + '_vote_' + analysis_type + '_' + str(filter_semtype) + '_' + str(timestamp) +'.csv'
-    out.to_csv(data_out / file)
+    out.drop_duplicates().to_csv(data_out / file)
 
 
     
@@ -1948,7 +1992,7 @@ def main(semtype, c):
 
 if __name__ == '__main__':
 
-    run_ = 'comp'
+    run_ = 'vote'
 
     start = time.time()
 
@@ -1956,7 +2000,7 @@ if __name__ == '__main__':
     timestamp = datetime.timestamp(now)
 
     if run_ == 'comp':
-        parallel = False
+        parallel = True
 
         file_out = 'complement_' + corpus + '_filter_semtype_' + str(filter_semtype) + '_' + str(timestamp) +'.csv'
         
@@ -1997,4 +2041,16 @@ if __name__ == '__main__':
     elapsed = (time.time() - start)
     print('elapsed:', elapsed)
 
+'''
+for sys in systems:
+    ref_ann[sys]=0
+    for row in ref_ann.itertuples():
+        iix = pd.IntervalIndex.from_arrays(df.begin, df.end, closed='neither')
+        span_range = pd.Interval(row.start, row.end)
+        fx = df[iix.overlaps(span_range)].copy()
+        if len(fx) > 0:
+            for sys in systems:
+                if sys in fx.system.values:
+                    ref_ann.loc[row.Index,sys] = 1
 
+'''
