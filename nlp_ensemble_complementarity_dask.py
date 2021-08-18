@@ -62,7 +62,7 @@ client = Client(processes=False)
 #corpus = 'fairview'
 #corpus = 'i2b2'
 #corpus = 'mipacq'
-corpus = 'medmentions'
+corpus = 'i2b2'
 
 # TODO: create config.py file
 # STEP-2: CHOOSE YOUR DATA DIRECTORY; this is where output data will be saved on your machine
@@ -115,7 +115,7 @@ system_annotation = sys_data(corpus, analysis_type)
 
 # TODO: move to click param
 # STEP-(8A): FILTER BY SEMTYPE
-filter_semtype = True 
+filter_semtype = False # True 
 
 # TODO: create config.py file
 # STEP-(8B): IF STEP-(8A) == True -> GET REFERENCE SEMTYPES
@@ -143,7 +143,7 @@ src_table = 'sofa'
 run_type = 'overlap'
 
 # STEP-11: Specify type of ensemble: merge or vote: used for file naming -> TODO: remove!
-ensemble_type = 'vote' #'merge'
+ensemble_type = 'merge'
 
 #****** TODO 
 '''
@@ -1040,13 +1040,40 @@ def generate_metrics(analysis_type: str, corpus: str, filter_semtype, semtype = 
 
         print("total elapsed time:", elapsed) 
 
+# https://stackoverflow.com/questions/44414313/how-to-add-complementary-intervals-in-pandas-dataframe
+def complement(df, corpus, system):
+    docs=get_docs(corpus)
+
+    out = pd.DataFrame()
+
+    for k, v in docs.items():
+
+        b = df.loc[df.note_id==k]
+        d = pd.DataFrame({"begin":[0] + sorted(pd.concat([b.begin , b.end+1])), "end": sorted(pd.concat([b.begin-1 , b.end]))+[v]} )
+        e = df.merge(d, how='right', on=['begin', 'end'],indicator=True)
+        e = e.loc[e._merge=="right_only"]
+        e['note_id'] = k
+        e['system'] = system
+        del e['_merge']
+        out = pd.concat([out, e])
+        
+
+    return out
 
 @ft.lru_cache(maxsize=None)
 def get_sys_data(system: str, analysis_type: str, corpus: str, filter_semtype, semtype = None) -> pd.DataFrame:
    
     _, data = get_metric_data(analysis_type, corpus)
+
+    negate = False
+    if 'prime' in system:
+        negate = True
+        system = system.split('_')[0]
     
     out = data.loc[data.system == system]
+
+    if negate:
+        out = complement(out, corpus, system)
     
     if filter_semtype:
         st = SemanticTypes([semtype], corpus).get_system_type(system)
@@ -1176,7 +1203,7 @@ def process_sentence(pt, sentence, analysis_type, corpus, filter_semtype, semtyp
         cols_to_keep = ['case', 'overlap']
     
     def evaluate(parseTree):
-        oper = {'&': op.and_, '|': op.or_i, '^': op.xor, '~': op.not_}
+        oper = {'&': op.and_, '|': op.or_, '^': op.xor, '~': op.not_}
         
         if parseTree:
             leftC = gevent.spawn(evaluate, parseTree.getLeftChild())
@@ -1304,7 +1331,7 @@ def process_sentence(pt, sentence, analysis_type, corpus, filter_semtype, semtyp
         evaluate(pt)  
     
     # trivial case
-    elif sentence.n_or == 0 and sentence.n_and == 0:
+    elif sentence.n_or == 0 and sentence.n_and == 0 and sentence.x_or:
         
         if filter_semtype:
             r.system_merges = get_sys_data(sentence.sentence, analysis_type, corpus, filter_semtype, semtype)
@@ -1372,6 +1399,26 @@ def buildParseTree(fpexp):
 
     return eTree
 
+def build_sentence(sentence):
+    sentence = sentence.replace('(~(A))','A_prime'). \
+            replace('(~(B))','B_prime'). \
+            replace('(~(C))','C_prime'). \
+            replace('(~(D))','D_prime'). \
+            replace('~(A)', 'A_prime'). \
+            replace('~(B)', 'B_prime'). \
+            replace('~(C)','C_prime'). \
+            replace('~(D)','D_prime'). \
+            replace('(A)', 'A'). \
+            replace('(B)','B'). \
+            replace('(C)','C'). \
+            replace('(D)','D')
+
+    return  sentence.replace('A','biomedicus'). \
+                replace('B', 'clamp'). \
+                replace('C', 'ctakes'). \
+                replace('D', 'metamap')
+
+
 @ft.lru_cache(maxsize=None)
 def make_parse_tree(payload):
     """
@@ -1382,8 +1429,16 @@ def make_parse_tree(payload):
             a: order
     """
     def preprocess_sentence(sentence):
+        sentence = build_sentence(sentence)
+        print(sentence)
+
         # prepare statement for case when a boolean AND/OR is given
-        sentence = payload.replace('(', ' ( ').replace(')', ' ) ').replace('&', ' & ').replace('|', ' | ').replace('  ', ' ')
+        sentence = sentence.replace('(', ' ( '). \
+                replace(')', ' ) '). \
+                replace('&', ' & '). \
+                replace('|', ' | '). \
+                replace('^', ' ^ '). \
+                replace('  ', ' ')
         return sentence
 
     sentence = preprocess_sentence(payload)
@@ -1401,6 +1456,7 @@ class Sentence(object):
         self = self
         self.n_and = sentence.count('&')
         self.n_or = sentence.count('|')
+        self.x_or = sentence.count('^')
         self.sentence = sentence
 
 @ft.lru_cache(maxsize=None)
@@ -1650,6 +1706,8 @@ def get_merge_data(boolean_expression: str, analysis_type: str, corpus: str, run
 
     results = process_sentence(pt, sentence, analysis_type, corpus, filter_semtype, semtype)
 
+    #print(results.system_merges)
+
     if metrics:
         if run_type == 'overlap':
             if filter_semtype:
@@ -1860,7 +1918,9 @@ def get_ensemble_pairs(systems=['biomedicus', 'clamp', 'ctakes', 'metamap', 'qui
 
 # use with combo_searcher
 def ad_hoc_measure(statement, analysis_type, corpus, measure, filter_semtype, semtype = None):
-    d = get_merge_data(statement, analysis_type, corpus, run_type, filter_semtype, True, semtype)
+    d = get_merge_data(statement, analysis_type, corpus, run_type, filter_semtype, metrics, semtype)
+
+    print(d)
 
     if measure in ['F1', 'precision', 'recall']:
         return d[measure]
