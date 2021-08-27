@@ -46,7 +46,7 @@ from dask.distributed import Client
 # client = Client('tcp://scheduler-address:8786')
 
 # If you want Dask to set itself up on your personal computer
-client = Client(processes=False)
+#client = Client(processes=False)
 
 # The cell below contains the configurable parameters to ensure that our ensemble explorer runs properaly on your machine. 
 # Please read carfully through steps (1-11) before running the rest of the cells.
@@ -62,7 +62,7 @@ client = Client(processes=False)
 #corpus = 'fairview'
 #corpus = 'i2b2'
 #corpus = 'mipacq'
-corpus = 'i2b2'
+corpus = 'fairview'
 
 # TODO: create config.py file
 # STEP-2: CHOOSE YOUR DATA DIRECTORY; this is where output data will be saved on your machine
@@ -73,6 +73,7 @@ data_out = Path('/Users/gms/development/nlp/nlpie/data/ensembling-u01/output/')
 # TODO: move to click param
 # STEP-3: CHOOSE WHICH SYSTEMS YOU'D LIKE TO EVALUATE AGAINST THE CORPUS REFERENCE SET
 systems = ['biomedicus', 'clamp', 'ctakes', 'metamap', 'quick_umls']
+systems = ['biomedicus', 'clamp', 'ctakes', 'metamap']
 
 # TODO: move to click param
 # STEP-4: CHOOSE TYPE OF RUN:  
@@ -101,7 +102,7 @@ table_name = ref_data(corpus)
 
 def sys_data(corpus, analysis_type):
     if analysis_type == 'entity':
-        return 'analytical_'+corpus+'.csv' # OPTIONS include 'analytical_cui_mipacq_concepts.csv' OR 'analytical_cui_i2b2_concepts.csv' 
+        return 'disambiguated_analytical_'+corpus+'.csv' # OPTIONS include 'analytical_cui_mipacq_concepts.csv' OR 'analytical_cui_i2b2_concepts.csv' 
     elif analysis_type in ('cui', 'full', 'entity'):
         return 'analytical_'+corpus+'_cui.csv' # OPTIONS include 'analytical_cui_mipacq_concepts.csv' OR 'analytical_cui_i2b2_concepts.csv' 
         
@@ -115,7 +116,7 @@ system_annotation = sys_data(corpus, analysis_type)
 
 # TODO: move to click param
 # STEP-(8A): FILTER BY SEMTYPE
-filter_semtype = False # True 
+filter_semtype = True # True 
 
 # TODO: create config.py file
 # STEP-(8B): IF STEP-(8A) == True -> GET REFERENCE SEMTYPES
@@ -124,6 +125,7 @@ def ref_semtypes(filter_semtype, corpus):
     if filter_semtype:
         if corpus == 'fairview':
             semtypes = ['Drug', 'Finding', 'Anatomy', 'Procedure']
+            semtypes = ['Finding']
         elif corpus == 'i2b2':
             semtypes = ['test,treatment', 'problem']
         elif corpus == 'mipacq':
@@ -540,7 +542,6 @@ def label_vector(doc: int, ann: List[int], labels: List[str]) -> np.array:
 
     v = np.zeros(doc, dtype=np.uint8)
     labels = list(labels)
-    
     for (i, lab) in enumerate(labels):
         i += 1  # 0 is reserved for no label
         idxs = [np.arange(a.begin, a.end, dtype=np.int16) for a in ann if a.label == lab]
@@ -605,7 +606,7 @@ def vectorized_cooccurences(r: object, analysis_type: str, corpus: str, filter_s
         
     sys = get_sys_ann(analysis_type, r)
     labels = get_labels(analysis_type, corpus, filter_semtype, semtype)
-    
+
     sys2 = []
     s2 = []
 
@@ -613,7 +614,6 @@ def vectorized_cooccurences(r: object, analysis_type: str, corpus: str, filter_s
     #    s = list(sys.itertuples(index=False))
     
     for k, v in docs.items():
-
         if analysis_type != 'cui':
             s1 = list(sys.loc[sys.case == k].itertuples(index=False))
             #s1 = [i for i in s if i.case==k] # list(sys.loc[sys.case == docs[n][0]].itertuples(index=False))
@@ -748,12 +748,12 @@ def vectorized_complementarity(r: object, analysis_type: str, corpus: str, filte
         sys_ab1_ab2 = label_vector(v, s_ab1_ab2, labels)
         sys_ab1_ab3.append(sys_ab1_ab2)
 
-    
 
     # right/wrong for A and B
     s_a2 = np.concatenate(sys_a2).ravel()
     s_b2 = np.concatenate(sys_b2).ravel()
-    
+   
+
     inter = np.concatenate(sys_ab2).ravel()
     symmetric_all = np.concatenate(sys_ab1_ab3).ravel()
 
@@ -763,8 +763,9 @@ def vectorized_complementarity(r: object, analysis_type: str, corpus: str, filte
     _, _, aFP, aFN = confused(sp.COO(s_a2), sp.COO(ref))
     _, _, bFP, bFN = confused(sp.COO(s_b2), sp.COO(ref))
 
-    
+    _, abTN, abFP, abFN = confused(sp.COO(sp.COO(inter)), sp.COO(ref))
 
+    print('abFP, abFN, abTN', abFP, abFN, abTN)
 
     b_over_a, a_over_b, mean_comp = complementarity_measures(FN, FP, aFN, aFP, bFN, bFP)
 
@@ -786,6 +787,10 @@ def vectorized_complementarity(r: object, analysis_type: str, corpus: str, filte
 
     frames = [out, pd.DataFrame(mean_comp, index=[0])]
     out = pd.concat(frames, ignore_index=True, sort=False) 
+
+    out['abFP'] = abFP
+    out['abFN'] = abFN
+    out['abTN'] = abTN
 
     return out
         
@@ -885,7 +890,7 @@ def get_metric_data(analysis_type: str, corpus: str):
     #systems = AnalysisConfig().systems
    
     if corpus != 'medmentions':
-        sys_ann = pd.read_csv(analysisConf.data_dir + usys_file, dtype={'note_id': str})
+        sys_ann = pd.read_csv(analysisConf.data_dir + usys_file, dtype={'note_id': str, 'begin': 'int64', 'end': 'int64'})
     else:
         sys_ann = pd.read_csv(analysisConf.data_dir + usys_file)
         sys_ann['note_id'] = pd.to_numeric(sys_ann['note_id'])
@@ -907,8 +912,8 @@ def get_metric_data(analysis_type: str, corpus: str):
     sys_ann = sys_ann[['begin', 'end', 'score', 'note_id', 'semtypes', 'system']]
     sys_ann = sys_ann.drop_duplicates()
 
-    ref_ann, _ = reduce_mem_usage(ref_ann)
-    sys_ann, _ = reduce_mem_usage(sys_ann)
+    #ref_ann, _ = reduce_mem_usage(ref_ann)
+    #sys_ann, _ = reduce_mem_usage(sys_ann)
  
     
     return ref_ann, sys_ann
@@ -1041,24 +1046,33 @@ def generate_metrics(analysis_type: str, corpus: str, filter_semtype, semtype = 
         print("total elapsed time:", elapsed) 
 
 # https://stackoverflow.com/questions/44414313/how-to-add-complementary-intervals-in-pandas-dataframe
-def complement(df, corpus, system):
+def complement(df, corpus, system, filter_semtype, semtype=None):
     docs=get_docs(corpus)
 
     out = pd.DataFrame()
 
+    if filter_semtype:
+        a = df.loc[df.semtypes.isin(semtype)]
+   
     for k, v in docs.items():
-
-        b = df.loc[df.note_id==k]
-        d = pd.DataFrame({"begin":[0] + sorted(pd.concat([b.begin , b.end+1])), "end": sorted(pd.concat([b.begin-1 , b.end]))+[v]} )
-        e = df.merge(d, how='right', on=['begin', 'end'],indicator=True)
+        b = a.loc[a.note_id==k]
+        
+        d = pd.DataFrame({"begin":[0] + sorted(pd.concat([b.begin, b.end+1])), "end": sorted(pd.concat([b.begin-1, b.end]))+[v]}, dtype='int64')
+        d = d.loc[d.end>d.begin]
+        
+        e = b.merge(d, how='right', on=['begin', 'end'],indicator=True)
         e = e.loc[e._merge=="right_only"]
         e['note_id'] = k
         e['system'] = system
+        
+        #if k=='0001112285':
+        #    print(e)
+        
         del e['_merge']
         out = pd.concat([out, e])
-        
-
+    
     return out
+        
 
 @ft.lru_cache(maxsize=None)
 def get_sys_data(system: str, analysis_type: str, corpus: str, filter_semtype, semtype = None) -> pd.DataFrame:
@@ -1069,15 +1083,29 @@ def get_sys_data(system: str, analysis_type: str, corpus: str, filter_semtype, s
     if 'prime' in system:
         negate = True
         system = system.split('_')[0]
-    
+
     out = data.loc[data.system == system]
 
-    if negate:
-        out = complement(out, corpus, system)
+    
+    #if system == 'metamap':
+    #out = disambiguate(out)
+
+    if system == 'quick_umls':
+        out = out.loc[out.score.astype(float) >= 0.8]
+    
+    if system == 'metamap':
+        out = out.loc[out.score.abs().astype(int) >= 800]
+
     
     if filter_semtype:
         st = SemanticTypes([semtype], corpus).get_system_type(system)
         print(system, ' ST:', st)
+    
+    if negate:
+        if filter_semtype:
+            out = complement(out, corpus, system, filter_semtype, st)
+        else:
+            out = complement(out, corpus, system, filter_semtype)
     
     if corpus == 'casi':
         cols_to_keep = ['case', 'overlap'] 
@@ -1085,17 +1113,14 @@ def get_sys_data(system: str, analysis_type: str, corpus: str, filter_semtype, s
         return out
         
     else:
-        if filter_semtype:
-            out = out.loc[out.semtypes.isin(st)]
+
+        if not negate:
+
+            if filter_semtype:
+                out = out.loc[out.semtypes.isin(st)]
+            else:
+                out = out.loc[out.system == system]
             
-        else:
-            out = out.loc[out.system == system]
-            
-        if system == 'quick_umls':
-            out = out.loc[out.score.astype(float) >= 0.8]
-        
-        if system == 'metamap':
-            out = out.loc[out.score.abs().astype(int) >= 800]
             
         if 'entity' in analysis_type:
             cols_to_keep = ['begin', 'end', 'note_id', 'system']
@@ -1120,8 +1145,8 @@ def disambiguate(df):
     cases = set(df['note_id'].tolist())
     
     data = []
+
     for case in cases:
-        i = 0
         
         test = df.loc[df.note_id == case].copy()
         
@@ -1137,8 +1162,6 @@ def disambiguate(df):
             minScore = abs(float(fx['score'].min()))
 
             if len(fx) > 1: 
-                if i%5000 == 0:
-                    print('iteration:', i)
 
                 # if longer span exists, use as tie-breaker else use score
                 if maxLength > minLength:
@@ -1146,7 +1169,6 @@ def disambiguate(df):
                 elif maxScore > minScore:
                     fx = fx[fx['score'] == maxScore]
 
-            i += 1
             data.append(fx)
 
     out = pd.concat(data, axis=0)
@@ -1203,8 +1225,8 @@ def process_sentence(pt, sentence, analysis_type, corpus, filter_semtype, semtyp
         cols_to_keep = ['case', 'overlap']
     
     def evaluate(parseTree):
-        oper = {'&': op.and_, '|': op.or_, '^': op.xor, '~': op.not_}
-        
+        oper = {'&': op.and_, '|': op.or_, '^': op.xor}
+       
         if parseTree:
             leftC = gevent.spawn(evaluate, parseTree.getLeftChild())
             rightC = gevent.spawn(evaluate, parseTree.getRightChild())
@@ -1212,7 +1234,7 @@ def process_sentence(pt, sentence, analysis_type, corpus, filter_semtype, semtyp
             if leftC.get() is not None and rightC.get() is not None:
                 system_query = pd.DataFrame()
                 fn = oper[parseTree.getRootVal()]
-                
+
                 if isinstance(leftC.get(), str):
                     # get system as leaf node 
                     if filter_semtype:
@@ -1235,7 +1257,6 @@ def process_sentence(pt, sentence, analysis_type, corpus, filter_semtype, semtyp
                     r_sys = rightC.get()
                     
                 if fn == op.or_:
-
                     if isinstance(leftC.get(), str) and isinstance(rightC.get(), str):
                         frames = [left_sys, right_sys]
 
@@ -1254,7 +1275,6 @@ def process_sentence(pt, sentence, analysis_type, corpus, filter_semtype, semtyp
 #                         df = disambiguate(df)
 
                 if fn == op.and_:
-                    
                     if isinstance(leftC.get(), str) and isinstance(rightC.get(), str):
                         if not left_sys.empty and not right_sys.empty:
                             df = left_sys.merge(right_sys, on=cols_to_keep, how='inner')
@@ -1284,6 +1304,7 @@ def process_sentence(pt, sentence, analysis_type, corpus, filter_semtype, semtyp
                             df = pd.DataFrame(columns=cols_to_keep)
                 
                 if fn == op.xor:
+
                     if isinstance(leftC.get(), str) and isinstance(rightC.get(), str):
                         if not left_sys.empty and not right_sys.empty:
                             df = left_sys.merge(right_sys, on=cols_to_keep, how='outer', indicator=True)
@@ -1312,8 +1333,6 @@ def process_sentence(pt, sentence, analysis_type, corpus, filter_semtype, semtyp
                         else:
                             df = pd.DataFrame(columns=cols_to_keep)
                 
-                if fn == op.not_:
-                    pass
 
                 # get combined system results
                 r.system_merges = df
@@ -1327,16 +1346,16 @@ def process_sentence(pt, sentence, analysis_type, corpus, filter_semtype, semtyp
             else:
                 return parseTree.getRootVal()
     
-    if sentence.n_or > 0 or sentence.n_and > 0:
+    if sentence.n_or > 0 or sentence.n_and > 0 or sentence.x_or > 0:
         evaluate(pt)  
     
     # trivial case
-    elif sentence.n_or == 0 and sentence.n_and == 0 and sentence.x_or:
-        
+    elif sentence.n_or == 0 and sentence.n_and == 0 and sentence.x_or == 0:
+      
         if filter_semtype:
-            r.system_merges = get_sys_data(sentence.sentence, analysis_type, corpus, filter_semtype, semtype)
+            r.system_merges = get_sys_data((sentence.sentence), analysis_type, corpus, filter_semtype, semtype)
         else:
-            r.system_merges = get_sys_data(sentence.sentence, analysis_type, corpus, filter_semtype)
+            r.system_merges = get_sys_data((sentence.sentence), analysis_type, corpus, filter_semtype)
         
     return r
 
@@ -1416,7 +1435,7 @@ def build_sentence(sentence):
     return  sentence.replace('A','biomedicus'). \
                 replace('B', 'clamp'). \
                 replace('C', 'ctakes'). \
-                replace('D', 'metamap')
+                replace('D', 'metamap') 
 
 
 @ft.lru_cache(maxsize=None)
@@ -1429,8 +1448,7 @@ def make_parse_tree(payload):
             a: order
     """
     def preprocess_sentence(sentence):
-        sentence = build_sentence(sentence)
-        print(sentence)
+        #sentence = build_sentence(sentence)
 
         # prepare statement for case when a boolean AND/OR is given
         sentence = sentence.replace('(', ' ( '). \
@@ -1441,7 +1459,8 @@ def make_parse_tree(payload):
                 replace('  ', ' ')
         return sentence
 
-    sentence = preprocess_sentence(payload)
+    print(payload)
+    sentence = preprocess_sentence((payload))
     print('Processing sentence:', sentence)
     
     pt = buildParseTree(sentence)
@@ -1561,7 +1580,7 @@ def get_metrics(boolean_expression: str, analysis_type: str, corpus: str, run_ty
             ((TP, TN, FP, FN),(macro_p,macro_r,macro_f1)) = vectorized_cooccurences(r, analysis_type, corpus, filter_semtype, semtype)
         else:
             ((TP, TN, FP, FN),(macro_p,macro_r,macro_f1)) = vectorized_cooccurences(r, analysis_type, corpus, filter_semtype)
-          
+        
         # TODO: validate against ann1/sys1 where val = 1
         # total by number chars
         system_n = TP + FP
@@ -1634,7 +1653,6 @@ def run_ensemble(systems, analysis_type, corpus, filter_semtype, semtype=None):
         expressions = get_ensemble_combos(systems)
                
         for e in expressions:
-            print(e)
             if filter_semtype:
                 d = get_metrics(e, analysis_type, corpus, run_type, filter_semtype, semtype)
             else:
@@ -1700,7 +1718,18 @@ def get_merge_data(boolean_expression: str, analysis_type: str, corpus: str, run
     """
 
 
-    sentence = Sentence(boolean_expression)   
+    sentence = Sentence(build_sentence(boolean_expression))   
+
+    # kludge
+    if '~' in sentence.sentence:
+        d =  {}
+        d['F1'] = 0
+        d['precision'] = 0
+        d['recall'] = 0
+        return d
+
+    if sentence.n_and > 0 or sentence.n_or > 0 or sentence.x_or > 0:
+        sentence.sentence = '(' + sentence.sentence + ')'
 
     pt = make_parse_tree(sentence.sentence)
 
@@ -1711,7 +1740,7 @@ def get_merge_data(boolean_expression: str, analysis_type: str, corpus: str, run
     if metrics:
         if run_type == 'overlap':
             if filter_semtype:
-                 ((TP, TN, FP, FN),(p,r,f1)) = vectorized_cooccurences(results, analysis_type, corpus, filter_semtype, semtype)
+                ((TP, TN, FP, FN),(p,r,f1)) = vectorized_cooccurences(results, analysis_type, corpus, filter_semtype, semtype)
             else:
                  ((TP, TN, FP, FN),(p,r,f1)) = vectorized_cooccurences(results, analysis_type, corpus, filter_semtype)
 
@@ -1918,21 +1947,35 @@ def get_ensemble_pairs(systems=['biomedicus', 'clamp', 'ctakes', 'metamap', 'qui
 
 # use with combo_searcher
 def ad_hoc_measure(statement, analysis_type, corpus, measure, filter_semtype, semtype = None):
-    d = get_merge_data(statement, analysis_type, corpus, run_type, filter_semtype, metrics, semtype)
+   
+    # kludge in get_merge_data
+    #if statement[0]=='~' and '^' in statement:
+    #    print('cannot:', statement)
+    #    return 0
 
-    print(d)
+    d = get_merge_data(statement, analysis_type, corpus, run_type, filter_semtype, True, semtype)
+
+    file_name = corpus + '_' + measure +  '.csv'
 
     if measure in ['F1', 'precision', 'recall']:
+        with open(data_out / file_name, 'a') as f:
+
+            d['system'] = statement
+            df = pd.DataFrame(d,  index=[0])
+            
+            df.to_csv(data_out / file_name, mode='a', header=f.tell()==0)
+        
         return d[measure]
     else:
         print('Invalid measure!')
 
-def ad_hoc_sys(statement, analysis_type, corpus, metrics = False, semtype = None):
+def ad_hoc_sys(statement, analysis_type, corpus, filter_semtype, metrics = False, semtype = None):
     sys = get_merge_data(statement, analysis_type, corpus, run_type, filter_semtype, metrics, semtype)
 
     return sys
 
 
+#def main_test(systems, corpus, filter_semtype, semtypes = None):
 def main_test():
 
     out = pd.DataFrame()
@@ -1943,7 +1986,7 @@ def main_test():
 
                 print('SYSYEMS FOR SEMTYPE', semtype, 'ARE', test)
                 if len(test) == 1:
-                   d = ad_hoc_sys(test[0], analysis_type, corpus, True, semtype)
+                   d = ad_hoc_sys(test[0], analysis_type, corpus, filter_semtype, True, semtype)
                    metrics = pd.DataFrame(d, index=[0])
 
                    metrics['systems'] = test[0]
@@ -1967,7 +2010,7 @@ def main_test():
 
 
     
-def main(semtype, c):
+def main(semtype, c, out_file=False, filter_semtype=True):
    
     #now = datetime.now()
     #timestamp = datetime.timestamp(now)
@@ -1995,21 +2038,22 @@ def main(semtype, c):
     r.nameA = c[0]
     r.nameB = c[1]
 
-    r.sysA = ad_hoc_sys(c[0], analysis_type, corpus, False, semtype) # c[0]
-    r.sysB = ad_hoc_sys(c[1], analysis_type, corpus, False, semtype) # c[1]
+    r.sysA = ad_hoc_sys(c[0], analysis_type, corpus, filter_semtype, False, semtype) # c[0]
+    r.sysB = ad_hoc_sys(c[1], analysis_type, corpus, filter_semtype, False, semtype) # c[1]
 
     out = vectorized_complementarity(r, analysis_type, corpus, filter_semtype, semtype)
     # --> get standard metrics
 
     print('(' + c[0] + '&' + c[1] + ')')
     print('(' + c[0] + '|' + c[1] + ')')
+    print('(' + c[0] + '^' + c[1] + ')')
 
     statement = '(' + c[0] + '&' + c[1] + ')'
 
-    and_ = ad_hoc_sys(statement, analysis_type, corpus, True, semtype)
+    and_ = ad_hoc_sys(statement, analysis_type, corpus, filter_semtype, True, semtype)
 
     and_['merge'] = statement
-    n = statement.count('&') + statement.count('|') + 1 
+    n = statement.count('&') + statement.count('|') + statement.count('^') + 1 
     and_['n_terms'] = n
     and_['p_ci'] = str((and_['p_lower_bound'], and_['p_upper_bound'])) 
     and_['r_ci'] = str((and_['r_lower_bound'], and_['r_upper_bound']))  
@@ -2017,22 +2061,32 @@ def main(semtype, c):
 
     statement = '(' + c[0] + '|' + c[1] + ')'
 
-    or_ = ad_hoc_sys(statement, analysis_type, corpus, True, semtype)
+    or_ = ad_hoc_sys(statement, analysis_type, corpus, filter_semtype, True, semtype)
 
     or_['merge'] = statement
-    n = statement.count('&') + statement.count('|') + 1 
+    n = statement.count('&') + statement.count('|') + statement.count('^') + 1 
     or_['n_terms'] = n
     or_['p_ci'] = str((or_['p_lower_bound'], or_['p_upper_bound'])) 
     or_['r_ci'] = str((or_['r_lower_bound'], or_['r_upper_bound']))  
     or_['f_ci'] = str((or_['f_lower_bound'], or_['f_upper_bound'])) 
 
+    statement = '(' + c[0] + '^' + c[1] + ')'
+
+    xor_ = ad_hoc_sys(statement, analysis_type, corpus, filter_semtype, True, semtype)
+
+    xor_['merge'] = statement
+    n = statement.count('&') + statement.count('|') + statement.count('^') + 1 
+    xor_['n_terms'] = n
+    xor_['p_ci'] = str((xor_['p_lower_bound'], xor_['p_upper_bound'])) 
+    xor_['r_ci'] = str((xor_['r_lower_bound'], xor_['r_upper_bound']))  
+    xor_['f_ci'] = str((xor_['f_lower_bound'], xor_['f_upper_bound'])) 
     # --> end standard metrics
 
     out['semgroup'] = semtype
 
     out['precision_and'] = and_['precision']
     out['recall_and'] = and_['recall']
-    out['F1_and'] = and_['F1']
+    out['f1_and'] = and_['F1']
     out['merge_and'] = and_['merge']
     out['p_ci_and'] = and_['p_ci']
     out['r_ci_and'] = and_['r_ci']
@@ -2045,10 +2099,25 @@ def main(semtype, c):
     out['p_ci_or'] = or_['p_ci']
     out['r_ci_or'] = or_['r_ci']
     out['f_ci_or'] = or_['f_ci']
-    out['nterms'] = n
 
-    with open(data_out / file_out, 'a') as f:
-        out.to_csv(f, header=f.tell()==0)
+    out['precision_xor'] = xor_['precision']
+    out['recall_xor'] = xor_['recall']
+    out['f1_xor'] = xor_['F1']
+    out['merge_xor'] = xor_['merge']
+    out['p_ci_xor'] = xor_['p_ci']
+    out['r_ci_xor'] = xor_['r_ci']
+    out['f_ci_xor'] = xor_['f_ci']
+    out['nterms'] = n
+    
+    # write to file 
+    if out_file:
+        with open(data_out / file_out, 'a') as f:
+            out.to_csv(f, header=f.tell()==0)
+    else:
+        print(out)
+        return out
+
+
 
 if __name__ == '__main__':
 
