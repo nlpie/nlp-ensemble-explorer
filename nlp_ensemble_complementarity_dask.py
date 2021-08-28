@@ -16,7 +16,7 @@
   limitations under the License.
 '''
 
-from combo_searcher_new import combo_searcher as cs
+from combo_searcher import combo_searcher as cs
 import gevent
 from scipy import stats 
 from scipy.stats import norm, mode
@@ -62,7 +62,7 @@ from dask.distributed import Client
 #corpus = 'fairview'
 #corpus = 'i2b2'
 #corpus = 'mipacq'
-corpus = 'fairview'
+corpus = 'mipacq'
 
 # TODO: create config.py file
 # STEP-2: CHOOSE YOUR DATA DIRECTORY; this is where output data will be saved on your machine
@@ -1270,7 +1270,7 @@ def process_sentence(pt, sentence, analysis_type, corpus, filter_semtype, semtyp
                         frames = [l_sys, r_sys]
                     
                     df = pd.concat(frames,  ignore_index=True)
-                    
+
 #                     if analysis_type == 'full':
 #                         df = disambiguate(df)
 
@@ -1302,7 +1302,7 @@ def process_sentence(pt, sentence, analysis_type, corpus, filter_semtype, semtyp
                             df = df[cols_to_keep].drop_duplicates(subset=cols_to_keep)
                         else:
                             df = pd.DataFrame(columns=cols_to_keep)
-                
+
                 if fn == op.xor:
 
                     if isinstance(leftC.get(), str) and isinstance(rightC.get(), str):
@@ -1547,13 +1547,15 @@ def get_sys_ann(analysis_type, r):
     
     sys = set_labels(analysis_type, sys)
     
-    if analysis_type == 'entity':
-        cols_to_keep = ['begin', 'end', 'case', 'label']
-    elif analysis_type == 'full':
+    if analysis_type in ['entity', 'full']:
         cols_to_keep = ['begin', 'end', 'case', 'label']
     elif analysis_type == 'cui':
         cols_to_keep = ['case', 'label']
     
+    if len(sys) == 0:
+        sys = pd.DataFrame(columns=cols_to_keep)
+        print('WTF!')
+
     return sys[cols_to_keep]
 
 
@@ -1720,7 +1722,7 @@ def get_merge_data(boolean_expression: str, analysis_type: str, corpus: str, run
 
     sentence = Sentence(build_sentence(boolean_expression))   
 
-    # kludge
+    # kludge for deMorgan eqiuvalence
     if '~' in sentence.sentence:
         d =  {}
         d['F1'] = 0
@@ -1958,12 +1960,22 @@ def ad_hoc_measure(statement, analysis_type, corpus, measure, filter_semtype, se
     file_name = corpus + '_' + measure +  '.csv'
 
     if measure in ['F1', 'precision', 'recall']:
-        with open(data_out / file_name, 'a') as f:
+        
+        d['system'] = statement
+        df = pd.DataFrame(d,  index=[0])
+        
+        file_path = Path(data_out / file_name)
+        if file_path.exists():
+            df.to_csv(file_path, header=False, mode='a')
+        else:
+            df.to_csv(file_path, header=True, mode='w')
 
-            d['system'] = statement
-            df = pd.DataFrame(d,  index=[0])
+        #with open(data_out / file_name, 'a') as f:
+
+            #d['system'] = statement
+            #df = pd.DataFrame(d,  index=[0])
             
-            df.to_csv(data_out / file_name, mode='a', header=f.tell()==0)
+            #df.to_csv(data_out / file_name, mode='a', header=f.tell()==0)
         
         return d[measure]
     else:
@@ -2008,6 +2020,28 @@ def main_test():
     file = corpus + '_vote_' + analysis_type + '_' + str(filter_semtype) + '_' + str(timestamp) +'.csv'
     out.drop_duplicates().to_csv(data_out / file)
 
+def get_ensemble_combos(systems=['A','B','C','D']):
+# get a ensemble combinations
+
+    def length_score(expr):
+        return len(expr)
+
+    def wrap_ad_hoc_measure():
+         def retval(expr):
+             return .ad_hoc_measure(expr, 'entity', 'fairview', 'F1', True, 'Finding')
+         print(retval)
+         return retval
+
+    def get_result():
+        result = cs.get_best_ensembles(score_method=wrap_ad_hoc_measure(),
+                        names=systems,
+                        used_binops=[andop, orop, xorop],
+                        used_unops=[notop],
+                        minimum_increase=-1)
+
+        return result
+
+    return [r[0] for r in get_result()]
 
     
 def main(semtype, c, out_file=False, filter_semtype=True):
