@@ -16,7 +16,7 @@
   limitations under the License.
 '''
 
-from combo_searcher import combo_searcher as cs
+from combo_searcher_new import combo_searcher as cs
 import gevent
 from scipy import stats 
 from scipy.stats import norm, mode
@@ -60,9 +60,9 @@ from dask.distributed import Client
 # TODO: move to click param
 #corpus = 'clinical_trial2'
 #corpus = 'fairview'
-#corpus = 'i2b2'
+corpus = 'i2b2'
 #corpus = 'mipacq'
-corpus = 'mipacq'
+#corpus = 'mipacq'
 
 # TODO: create config.py file
 # STEP-2: CHOOSE YOUR DATA DIRECTORY; this is where output data will be saved on your machine
@@ -73,7 +73,7 @@ data_out = Path('/Users/gms/development/nlp/nlpie/data/ensembling-u01/output/')
 # TODO: move to click param
 # STEP-3: CHOOSE WHICH SYSTEMS YOU'D LIKE TO EVALUATE AGAINST THE CORPUS REFERENCE SET
 systems = ['biomedicus', 'clamp', 'ctakes', 'metamap', 'quick_umls']
-systems = ['biomedicus', 'clamp', 'ctakes', 'metamap']
+#systems = ['biomedicus', 'clamp', 'ctakes', 'metamap']
 
 # TODO: move to click param
 # STEP-4: CHOOSE TYPE OF RUN:  
@@ -102,7 +102,8 @@ table_name = ref_data(corpus)
 
 def sys_data(corpus, analysis_type):
     if analysis_type == 'entity':
-        return 'disambiguated_analytical_'+corpus+'.csv' # OPTIONS include 'analytical_cui_mipacq_concepts.csv' OR 'analytical_cui_i2b2_concepts.csv' 
+        #return 'disambiguated_analytical_'+corpus+'.csv' # OPTIONS include 'analytical_cui_mipacq_concepts.csv' OR 'analytical_cui_i2b2_concepts.csv' 
+        return 'analytical_'+corpus+'.csv' # OPTIONS include 'analytical_cui_mipacq_concepts.csv' OR 'analytical_cui_i2b2_concepts.csv' 
     elif analysis_type in ('cui', 'full', 'entity'):
         return 'analytical_'+corpus+'_cui.csv' # OPTIONS include 'analytical_cui_mipacq_concepts.csv' OR 'analytical_cui_i2b2_concepts.csv' 
         
@@ -125,13 +126,16 @@ def ref_semtypes(filter_semtype, corpus):
     if filter_semtype:
         if corpus == 'fairview':
             semtypes = ['Drug', 'Finding', 'Anatomy', 'Procedure']
-            semtypes = ['Finding']
+            #semtypes = ['Finding']
         elif corpus == 'i2b2':
             semtypes = ['test,treatment', 'problem']
+            #semtypes = ['problem']
         elif corpus == 'mipacq':
             semtypes = ['Anatomy', 'Procedures', 'Disorders,Sign_Symptom', 'Chemicals_and_drugs']
+            #semtypes = ['Disorders,Sign_Symptom']
         elif corpus == 'medmentions':
             semtypes = ['Anatomy', 'Disorders', 'Chemicals & Drugs', 'Procedures']
+            semtypes = ['Disorders']
 
         return semtypes
 
@@ -145,7 +149,7 @@ src_table = 'sofa'
 run_type = 'overlap'
 
 # STEP-11: Specify type of ensemble: merge or vote: used for file naming -> TODO: remove!
-ensemble_type = 'merge'
+ensemble_type = 'vote'
 
 #****** TODO 
 '''
@@ -1416,6 +1420,12 @@ def buildParseTree(fpexp):
         else:
             raise ValueError
 
+    l = []
+
+    out=eTree.preorder(l)
+
+    print(out)
+
     return eTree
 
 def build_sentence(sentence):
@@ -1435,7 +1445,8 @@ def build_sentence(sentence):
     return  sentence.replace('A','biomedicus'). \
                 replace('B', 'clamp'). \
                 replace('C', 'ctakes'). \
-                replace('D', 'metamap') 
+                replace('D', 'metamap'). \
+                replace('E', 'quick_umls') 
 
 
 @ft.lru_cache(maxsize=None)
@@ -1891,6 +1902,41 @@ def majority_vote(test, analysis_type, corpus, run_type, filter_semtype, semtype
     
     return out
 
+def get_ensemble_combos_measure_st():
+    
+    print(semtypes, systems)
+
+    for semtype in semtypes:
+
+        test = get_valid_systems(systems, semtype)
+        replacements = {'biomedicus':'A', 'clamp':'B', 'ctakes':'C', 'metamap':'D', 'quick_umls':'E'}
+        replacer = replacements.get  # For faster gets.
+
+        print([replacer(n, n) for n in test])
+
+        get_ensemble_combos_measure([replacer(n, n) for n in test], filter_semtype, semtype)
+
+def get_ensemble_combos_measure(systems, filter_semtype, semtype=None):
+# get a ensemble combinations
+
+    def length_score(expr):
+        return len(expr)
+
+    def wrap_ad_hoc_measure():
+         def retval(expr):
+             return ad_hoc_measure(expr, analysis_type, corpus, 'precision', filter_semtype, semtype)
+         print(retval)
+         return retval
+
+    def get_result():
+        result = cs.get_best_ensembles(score_method=wrap_ad_hoc_measure(),
+                        names=systems,
+                        operators=['&', '|'],
+                        minimum_increase=-1)
+
+        return result
+
+    return [r[0] for r in get_result()]
 
 def get_ensemble_combos(systems=['biomedicus', 'clamp', 'ctakes', 'metamap', 'quick_umls']): 
     # get a ensemble combinations
@@ -1957,7 +2003,13 @@ def ad_hoc_measure(statement, analysis_type, corpus, measure, filter_semtype, se
 
     d = get_merge_data(statement, analysis_type, corpus, run_type, filter_semtype, True, semtype)
 
-    file_name = corpus + '_' + measure +  '.csv'
+    if filter_semtype:
+        d['semtype'] = semtype
+
+    if filter_semtype:
+        file_name = corpus + '_' + measure +  '_st.csv'
+    else:
+        file_name = corpus + '_' + measure +  '.csv'
 
     if measure in ['F1', 'precision', 'recall']:
         
@@ -2028,7 +2080,7 @@ def get_ensemble_combos(systems=['A','B','C','D']):
 
     def wrap_ad_hoc_measure():
          def retval(expr):
-             return .ad_hoc_measure(expr, 'entity', 'fairview', 'F1', True, 'Finding')
+             return ad_hoc_measure(expr, 'entity', 'fairview', 'F1', True, 'Finding')
          print(retval)
          return retval
 

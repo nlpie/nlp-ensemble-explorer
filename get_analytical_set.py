@@ -23,7 +23,35 @@ def get_sem_types(engine):
             where group_name = 'Disorders';"""
       
     return pd.read_sql(sql, engine)
-    
+
+def get_data_file(file_name, engine):
+
+    st = get_sem_types(engine)
+
+    df = pd.read_csv(data_folder / file_name, dtype={'note_id': str})
+
+    df = df[['begin', 'end', 'note_id', 'score', 'semtypes', 'system', 'cui', 'corpus']]
+
+    mask = [st for st in list(set(st.tui.tolist()))]
+    qumls = df.loc[df.system=='quick_umls']
+    qumls = qumls[qumls.semtypes.isin(mask)]
+
+    b9 = df.loc[df.system=='biomedicus']
+    b9 = b9[b9.semtypes.isin(mask)]
+
+    mask = [st.split(',')  for st in list(set(st.clamp_name.tolist()))][0]
+    clamp = df.loc[df.system=='clamp']
+    clamp = clamp[clamp.semtypes.isin(mask)]
+
+    mask = [st.split(',')  for st in list(set(st.ctakes_name.tolist()))][0]
+    ctakes =  df.loc[df.system=='ctakes']
+    ctakes = ctakes[ctakes.semtypes.isin(mask)]
+
+    mask = [st for st in list(set(st.abbreviation.tolist()))]
+    mm =  df.loc[df.system=='metamap']
+    mm = mm[mm.semtypes.isin(mask)]
+
+    return qumls, b9, clamp, ctakes, mm
     
 def get_data(engine):
 
