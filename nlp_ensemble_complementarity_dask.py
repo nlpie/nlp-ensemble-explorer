@@ -16,7 +16,8 @@
   limitations under the License.
 '''
 
-from combo_searcher_new import combo_searcher as cs
+#from combo_searcher_new import combo_searcher as cs
+from combo_searcher_all import combo_searcher as cs
 import gevent
 from scipy import stats 
 from scipy.stats import norm, mode
@@ -41,6 +42,7 @@ import statistics as s
 from sqlite3 import connect
 import joblib
 from dask.distributed import Client
+from sklearn.metrics import confusion_matrix
 
 # If you have a remote cluster running Dask
 # client = Client('tcp://scheduler-address:8786')
@@ -60,9 +62,10 @@ from dask.distributed import Client
 # TODO: move to click param
 #corpus = 'clinical_trial2'
 #corpus = 'fairview'
-corpus = 'i2b2'
-#corpus = 'mipacq'
-#corpus = 'mipacq'
+#corpus = 'i2b2'
+#corpus = 'fairview'
+corpus = 'mipacq'
+#corpus = 'medmentions'
 
 # TODO: create config.py file
 # STEP-2: CHOOSE YOUR DATA DIRECTORY; this is where output data will be saved on your machine
@@ -98,15 +101,22 @@ def ref_data(corpus):
 
 table_name = ref_data(corpus)
 
+# TODO: move to click param
+# STEP-(8A): FILTER BY SEMTYPE
+filter_semtype = True #False #True #False #True #False #True #False #True #False #True #False #True#False #True#False #True 
+
 # STEP-(6B): ENTER DETAILS FOR ACCESSING SYSTEM ANNOTATION DATA
 
 def sys_data(corpus, analysis_type):
-    if analysis_type == 'entity':
+    if analysis_type == 'entity' and not filter_semtype:
         #return 'disambiguated_analytical_'+corpus+'.csv' # OPTIONS include 'analytical_cui_mipacq_concepts.csv' OR 'analytical_cui_i2b2_concepts.csv' 
-        return 'analytical_'+corpus+'.csv' # OPTIONS include 'analytical_cui_mipacq_concepts.csv' OR 'analytical_cui_i2b2_concepts.csv' 
+        return 'analytical_disambiguated_'+corpus+'_full.csv' # OPTIONS include 'analytical_cui_mipacq_concepts.csv' OR 'analytical_cui_i2b2_concepts.csv' 
+    elif analysis_type == 'entity' and filter_semtype:
+        return 'analytical_disambiguated_'+corpus+'_st.csv' # OPTIONS include 'analytical_cui_mipacq_concepts.csv' OR 'analytical_cui_i2b2_concepts.csv' 
+        #return '/submission/new_ner/analytical_disambiguated_mipacq_Disorders,Sign_Symptom_1633978586.737513.csv'
     elif analysis_type in ('cui', 'full', 'entity'):
         return 'analytical_'+corpus+'_cui.csv' # OPTIONS include 'analytical_cui_mipacq_concepts.csv' OR 'analytical_cui_i2b2_concepts.csv' 
-        
+
 system_annotation = sys_data(corpus, analysis_type)
 
 # STEP-7: CREATE A DB CONNECTION POOL
@@ -115,9 +125,6 @@ system_annotation = sys_data(corpus, analysis_type)
 #engine = engine_request
 #engine = connect('data/medmentions.sqlite')
 
-# TODO: move to click param
-# STEP-(8A): FILTER BY SEMTYPE
-filter_semtype = True # True 
 
 # TODO: create config.py file
 # STEP-(8B): IF STEP-(8A) == True -> GET REFERENCE SEMTYPES
@@ -131,11 +138,10 @@ def ref_semtypes(filter_semtype, corpus):
             semtypes = ['test,treatment', 'problem']
             #semtypes = ['problem']
         elif corpus == 'mipacq':
-            semtypes = ['Anatomy', 'Procedures', 'Disorders,Sign_Symptom', 'Chemicals_and_drugs']
-            #semtypes = ['Disorders,Sign_Symptom']
+            #semtypes = ['Anatomy', 'Procedures', 'Disorders,Sign_Symptom', 'Chemicals_and_drugs']
+            semtypes = ['Disorders,Sign_Symptom']
         elif corpus == 'medmentions':
             semtypes = ['Anatomy', 'Disorders', 'Chemicals & Drugs', 'Procedures']
-            semtypes = ['Disorders']
 
         return semtypes
 
@@ -150,6 +156,15 @@ run_type = 'overlap'
 
 # STEP-11: Specify type of ensemble: merge or vote: used for file naming -> TODO: remove!
 ensemble_type = 'vote'
+
+
+def echo_config():
+    print('corpus:', corpus)
+    print('filter:', filter_semtype)
+    print('systems:', systems)
+    print('task:', analysis_type)
+    print('semtypes:', semtypes)
+    
 
 #****** TODO 
 '''
@@ -544,11 +559,11 @@ def flatten_list(l):
 #get_ipython().run_line_magic('load_ext', 'cython')
 def label_vector(doc: int, ann: List[int], labels: List[str]) -> np.array:
 
-    v = np.zeros(doc, dtype=np.uint8)
+    v = np.zeros(doc)
     labels = list(labels)
     for (i, lab) in enumerate(labels):
         i += 1  # 0 is reserved for no label
-        idxs = [np.arange(a.begin, a.end, dtype=np.int16) for a in ann if a.label == lab]
+        idxs = [np.arange(a.begin, a.end) for a in ann if a.label == lab]
         idxs = [j for mask in idxs for j in mask]
         v[idxs] = i 
 
@@ -566,10 +581,12 @@ def confused(pred, true):
     TP = np.sum(np.logical_and(true, pred))
     TN = np.sum(np.logical_and(not_true, not_predicted))
     FP = np.sum(np.logical_and(not_true, pred))
+    FN = np.sum(np.logical_and(true, not_predicted))
 
-    FN = len(pred) - (TP+TN+FP)
+    #FN = len(pred) - (TP+TN+FP)
     
     return TP, TN, FP, FN
+
 
 @ft.lru_cache(maxsize=None)
 def get_labels(analysis_type, corpus, filter_semtype, semtype=None):
@@ -631,7 +648,7 @@ def vectorized_cooccurences(r: object, analysis_type: str, corpus: str, filter_s
     a2 = get_reference_vector(analysis_type, corpus, filter_semtype, semtype)
             
     if analysis_type != 'cui': #binary and multiclass
-        s2 = np.array(flatten_list(sys2), dtype=np.uint8)
+        s2 = np.array(flatten_list(sys2))
         
         if analysis_type == 'full':
             report = classification_report(a2, s2, output_dict=True)
@@ -643,6 +660,7 @@ def vectorized_cooccurences(r: object, analysis_type: str, corpus: str, filter_s
             #TN, FP, FN, TP = confusion_matrix(a2, s2).ravel()
 
             TP, TN, FP, FN = confused(sp.COO(s2), sp.COO(a2))
+            #TP, TN, FP, FN = confused(s2, a2)
             return ((TP, TN, FP, FN), (0, 0, 0))
                     
     else: # multilabel/multiclass
@@ -684,11 +702,16 @@ def vectorized_complementarity(r: object, analysis_type: str, corpus: str, filte
     s_a2 = []
     s_b2 = []
     sys_ab1_ab3 = []
+    diff_left = []
+    diff_right = []
+    #diff_left_ref = []
+    #diff_right_ref = []
 
     #a = list(sysA.itertuples(index=False))
     #b = list(sysB.itertuples(index=False))
 
     ref = get_reference_vector(analysis_type, corpus, filter_semtype, semtype)
+    #ref_df = get_ref_ann(analysis_type, corpus, filter_semtype, semtype)
 
     # test optimization
     '''
@@ -723,12 +746,16 @@ def vectorized_complementarity(r: object, analysis_type: str, corpus: str, filte
     _, _, bFP, bFN = confused(sp.COO(s_b2), sp.COO(ref))
 
     '''
-    
+   
+    l = 0
     for k, v in docs.items():
+
+        l+=v
 
         # get for Aright/Awrong and Bright/Bwrong
         s_a = list(sysA.loc[sysA.case == k].itertuples(index=False))
         s_b = list(sysB.loc[sysB.case == k].itertuples(index=False)) 
+        #ref_l = list(ref_df.loc[ref_df.case == k].itertuples(index=False)) 
         #s_a1 = [i for i in a if i.case==k]##list(sysA.loc[sysA.case == docs[n][0]].itertuples(index=False))
         #s_b1 = [i for i in b if i.case==k]# list(sysB.loc[sysB.case == docs[n][0]].itertuples(index=False))
         sys_a1 = label_vector(v, s_a, labels)
@@ -737,7 +764,7 @@ def vectorized_complementarity(r: object, analysis_type: str, corpus: str, filte
         sys_a2.append(sys_a1)
         sys_b2.append(sys_b1)
 
-        # intersected list this will give positive values 
+        # intersected list this will give all positive values 
         # NB: intersection only gives positive labels, 
         # since systems do not annotate for negative class
         s_ab1 = list(set(s_a).intersection(set(s_b)))
@@ -745,41 +772,67 @@ def vectorized_complementarity(r: object, analysis_type: str, corpus: str, filte
         sys_ab1 = label_vector(v, s_ab1, labels)
         sys_ab2.append(sys_ab1)
         
-        #  in one set or other but not both for all negative values
+        # in one set or other but not both for all negative values
+        # to account for all negative values in intersection, need set of all possitives
         s_ab2 = list(set(s_a).symmetric_difference(set(s_b)))
         s_ab1_ab2 = list(set(s_ab1).union(set(s_ab2)))
-        
+
         sys_ab1_ab2 = label_vector(v, s_ab1_ab2, labels)
         sys_ab1_ab3.append(sys_ab1_ab2)
+       
+        # a not in b, etc.
+        difference_a = list(set(s_a).difference(set(s_b)))
+        difference_b = list(set(s_b).difference(set(s_a)))
 
+        diff_a = label_vector(v, difference_a, labels)
+        diff_b = label_vector(v, difference_b, labels)
 
+        diff_left.append(diff_a)
+        diff_right.append(diff_b)
+       
+        '''
+        difference_left_ref = label_vector(v, list((set(ref_l).difference(set(difference_b)).union(set(difference_a)))), labels)
+        difference_right_ref = label_vector(v, list((set(ref_l).difference(set(difference_a)).union(set(difference_b)))), labels)
+
+        diff_left_ref.append(difference_left_ref)
+        diff_right_ref.append(difference_right_ref)
+        '''
+    
     # right/wrong for A and B
     s_a2 = np.concatenate(sys_a2).ravel()
     s_b2 = np.concatenate(sys_b2).ravel()
-   
 
     inter = np.concatenate(sys_ab2).ravel()
     symmetric_all = np.concatenate(sys_ab1_ab3).ravel()
 
-    _, _, FP, _ = confused(sp.COO(inter), sp.COO(ref))
-    _, _, _, FN = confused(sp.COO(symmetric_all), sp.COO(ref))
+    difference_A = np.concatenate(diff_left).ravel()
+    difference_B = np.concatenate(diff_right).ravel()
 
-    _, _, aFP, aFN = confused(sp.COO(s_a2), sp.COO(ref))
-    _, _, bFP, bFN = confused(sp.COO(s_b2), sp.COO(ref))
+    #diff_left_ = np.concatenate(diff_left_ref).ravel()
+    #diff_right_ = np.concatenate(diff_right_ref).ravel()
 
-    _, abTN, abFP, abFN = confused(sp.COO(sp.COO(inter)), sp.COO(ref))
+    TP, _, FP, _ = confused(sp.COO(inter), sp.COO(ref))
+    _, TN, _, FN = confused(sp.COO(symmetric_all), sp.COO(ref))
 
-    print('abFP, abFN, abTN', abFP, abFN, abTN)
+    aTP, aTN, aFP, aFN = confused(sp.COO(s_a2), sp.COO(ref))
+    bTP, bTN, bFP, bFN = confused(sp.COO(s_b2), sp.COO(ref))
+
+    #lrTP, lrTN, lrFP, lrFN = confused(sp.COO(sp.COO(inter)), sp.COO(ref))
+
+    lTP, _, lFP, _ = confused(sp.COO(difference_A), sp.COO(ref))
+    rTP, _, rFP, _ = confused(sp.COO(difference_B), sp.COO(ref))
+    #_, lTN, _, lFN = confused(sp.COO(diff_left_), sp.COO(ref))
+    #_, rTN, _, rFN = confused(sp.COO(diff_right_), sp.COO(ref))
 
     b_over_a, a_over_b, mean_comp = complementarity_measures(FN, FP, aFN, aFP, bFN, bFP)
 
-    b_over_a['system'] = str((r.nameB, r.nameA))
-    b_over_a['B'] = r.nameB    
-    b_over_a['A'] = r.nameA
+    b_over_a['systems_comp'] = str((r.nameB, r.nameA))
+    #b_over_a['B'] = r.nameB    
+    #b_over_a['A'] = r.nameA
 
-    a_over_b['system'] = str((r.nameA, r.nameB))
-    a_over_b['B'] = r.nameA    
-    a_over_b['A'] = r.nameB
+    a_over_b['system_comp'] = str((r.nameA, r.nameB))
+    #a_over_b['B'] = r.nameA    
+    #a_over_b['A'] = r.nameB
 
     mean_comp['system'] = 'mean_comp(' + r.nameA + ',' + r.nameB + ')'
 
@@ -792,9 +845,27 @@ def vectorized_complementarity(r: object, analysis_type: str, corpus: str, filte
     frames = [out, pd.DataFrame(mean_comp, index=[0])]
     out = pd.concat(frames, ignore_index=True, sort=False) 
 
-    out['abFP'] = abFP
-    out['abFN'] = abFN
-    out['abTN'] = abTN
+    out['length'] = l
+    out['a_only_TP'] = lTP
+    out['a_only_FP'] = lFP
+    #out['lFN'] = lFN
+    #out['lTN'] = lTN
+    out['b_only_TP'] = rTP
+    out['b_only_FP'] = rFP
+    #out['rFN'] = rFN
+    #out['rTN'] = rTN
+    out['abTP'] = TP
+    out['abFP'] = FP
+    #out['abFN'] = FN
+    #out['abTN'] = TN
+    out['aTP'] = aTP
+    out['aTN'] = aTN
+    out['aFP'] = aFP
+    out['aFN'] = aFN
+    out['bTP'] = bTP
+    out['bTN'] = bTN
+    out['bFP'] = bFP
+    out['bFN'] = bFN
 
     return out
         
@@ -827,10 +898,10 @@ def complementarity_measures(FN, FP, aFN, aFP, bFN, bFP):
     if FP > min([aFP, bFP]):
         print('both bad p:', FP, aFP, bFP)
     
-    b_over_a = {'test': 'COMP(A, B)', 'max_prop_error_reduction': compA, 'p': p_compA, 'r': r_compA, 'F1-score': f1_compA}
-    a_over_b = {'test': 'COMP(B, A)', 'max_prop_error_reduction': compB, 'p': p_compB, 'r': r_compB, 'F1-score': f1_compB}
+    b_over_a = {'test': 'COMP(A, B)', 'max_prop_error_reduction': compA, 'p_comp': p_compA, 'r_comp': r_compA, 'F1-score_comp': f1_compA}
+    a_over_b = {'test': 'COMP(B, A)', 'max_prop_error_reduction': compB, 'p_comp': p_compB, 'r_comp': r_compB, 'F1-score_comp': f1_compB}
 
-    mean_complementarity = {'test': 'mean(COMP(B, A),COMP(A, B))', 'max_prop_error_reduction': meanComp, 'mean p': meanP, 'mean r': meanR, 'mean F1-score': meanF1}
+    mean_complementarity = {'test': 'mean(COMP(B, A),COMP(A, B))', 'max_prop_error_reduction': meanComp, 'mean p_comp': meanP, 'mean r_comp': meanR, 'mean F1-score_comp': meanF1}
 
     return b_over_a, a_over_b, mean_complementarity
 
@@ -894,7 +965,7 @@ def get_metric_data(analysis_type: str, corpus: str):
     #systems = AnalysisConfig().systems
    
     if corpus != 'medmentions':
-        sys_ann = pd.read_csv(analysisConf.data_dir + usys_file, dtype={'note_id': str, 'begin': 'int64', 'end': 'int64'})
+        sys_ann = pd.read_csv(analysisConf.data_dir + usys_file, dtype={'note_id': str})
     else:
         sys_ann = pd.read_csv(analysisConf.data_dir + usys_file)
         sys_ann['note_id'] = pd.to_numeric(sys_ann['note_id'])
@@ -921,7 +992,6 @@ def get_metric_data(analysis_type: str, corpus: str):
  
     
     return ref_ann, sys_ann
-
 
 
 def geometric_mean(metrics):
@@ -1061,7 +1131,7 @@ def complement(df, corpus, system, filter_semtype, semtype=None):
     for k, v in docs.items():
         b = a.loc[a.note_id==k]
         
-        d = pd.DataFrame({"begin":[0] + sorted(pd.concat([b.begin, b.end+1])), "end": sorted(pd.concat([b.begin-1, b.end]))+[v]}, dtype='int64')
+        d = pd.DataFrame({"begin":[0] + sorted(pd.concat([b.begin, b.end+1])), "end": sorted(pd.concat([b.begin-1, b.end]))+[v]})
         d = d.loc[d.end>d.begin]
         
         e = b.merge(d, how='right', on=['begin', 'end'],indicator=True)
@@ -1086,7 +1156,10 @@ def get_sys_data(system: str, analysis_type: str, corpus: str, filter_semtype, s
     negate = False
     if 'prime' in system:
         negate = True
-        system = system.split('_')[0]
+        if 'quick' not in system:
+            system = system.split('_')[0]
+        else:
+            system = '_'.join(system.split('_')[0:2])
 
     out = data.loc[data.system == system]
 
@@ -1124,7 +1197,6 @@ def get_sys_data(system: str, analysis_type: str, corpus: str, filter_semtype, s
                 out = out.loc[out.semtypes.isin(st)]
             else:
                 out = out.loc[out.system == system]
-            
             
         if 'entity' in analysis_type:
             cols_to_keep = ['begin', 'end', 'note_id', 'system']
@@ -1250,10 +1322,10 @@ def process_sentence(pt, sentence, analysis_type, corpus, filter_semtype, semtyp
                     l_sys = leftC.get()
                 
                 if isinstance(rightC.get(), str):
+
                     # get system as leaf node
                     if filter_semtype:
                         right_sys = get_sys_data(rightC.get(), analysis_type, corpus, filter_semtype, semtype)
-
                     else:
                         right_sys = get_sys_data(rightC.get(), analysis_type, corpus, filter_semtype)
                     
@@ -1274,9 +1346,6 @@ def process_sentence(pt, sentence, analysis_type, corpus, filter_semtype, semtyp
                         frames = [l_sys, r_sys]
                     
                     df = pd.concat(frames,  ignore_index=True)
-
-#                     if analysis_type == 'full':
-#                         df = disambiguate(df)
 
                 if fn == op.and_:
                     if isinstance(leftC.get(), str) and isinstance(rightC.get(), str):
@@ -1336,7 +1405,6 @@ def process_sentence(pt, sentence, analysis_type, corpus, filter_semtype, semtyp
                             df = df[cols_to_keep].loc[(df._merge=='left_only')|(df._merge=='right_only')].drop_duplicates(subset=cols_to_keep)
                         else:
                             df = pd.DataFrame(columns=cols_to_keep)
-                
 
                 # get combined system results
                 r.system_merges = df
@@ -1366,8 +1434,8 @@ def process_sentence(pt, sentence, analysis_type, corpus, filter_semtype, semtyp
 
 class Results(object):
     def __init__(self):
-        self.ref = np.array(list(), dtype=np.uint8)
-        self.sys = np.array(list(), dtype=np.uint8)
+        self.ref = np.array(list())
+        self.sys = np.array(list())
         self.df = pd.DataFrame()
         self.labels = []
 
@@ -1424,8 +1492,6 @@ def buildParseTree(fpexp):
 
     out=eTree.preorder(l)
 
-    print(out)
-
     return eTree
 
 def build_sentence(sentence):
@@ -1433,21 +1499,55 @@ def build_sentence(sentence):
             replace('(~(B))','B_prime'). \
             replace('(~(C))','C_prime'). \
             replace('(~(D))','D_prime'). \
+            replace('(~(E))','E_prime'). \
             replace('~(A)', 'A_prime'). \
             replace('~(B)', 'B_prime'). \
             replace('~(C)','C_prime'). \
             replace('~(D)','D_prime'). \
-            replace('(A)', 'A'). \
+            replace('~(E)','E_prime'). \
+            replace('(A)','A'). \
             replace('(B)','B'). \
             replace('(C)','C'). \
-            replace('(D)','D')
+            replace('(D)','D'). \
+            replace('(E)','E')
 
+    for c in permutations(['A','B','C','D','E'],2):
+        if c[0]+'&'+c[1] in sentence:
+            sentence=sentence.replace('(('+c[0]+'&'+c[1]+'))','('+c[0]+'&'+c[1]+')')
+        if c[0]+'|'+c[1] in sentence:
+            sentence=sentence.replace('(('+c[0]+'|'+c[1]+'))','('+c[0]+'|'+c[1]+')')
+    
     return  sentence.replace('A','biomedicus'). \
-                replace('B', 'clamp'). \
-                replace('C', 'ctakes'). \
-                replace('D', 'metamap'). \
-                replace('E', 'quick_umls') 
+                replace('B','clamp'). \
+                replace('C','ctakes'). \
+                replace('D','metamap'). \
+                replace('E','quick_umls') 
 
+def clean_sentence(sentence):
+    sentence = sentence.replace('(~(A))','A_prime'). \
+            replace('(~(B))','B_prime'). \
+            replace('(~(C))','C_prime'). \
+            replace('(~(D))','D_prime'). \
+            replace('(~(E))','E_prime'). \
+            replace('~(A)', 'A_prime'). \
+            replace('~(B)', 'B_prime'). \
+            replace('~(C)','C_prime'). \
+            replace('~(D)','D_prime'). \
+            replace('~(E)','E_prime'). \
+            replace('(A)','A'). \
+            replace('(B)','B'). \
+            replace('(C)','C'). \
+            replace('(D)','D'). \
+            replace('(E)','E')
+
+    for c in permutations(['A','B','C','D','E'],2):
+        if c[0]+'&'+c[1] in sentence:
+            sentence=sentence.replace('(('+c[0]+'&'+c[1]+'))','('+c[0]+'&'+c[1]+')')
+        print(c[0]+'|'+c[1])
+        if c[0]+'|'+c[1] in sentence:
+            sentence=sentence.replace('(('+c[0]+'|'+c[1]+'))','('+c[0]+'|'+c[1]+')')
+    
+    return sentence
 
 @ft.lru_cache(maxsize=None)
 def make_parse_tree(payload):
@@ -1802,9 +1902,9 @@ def get_reference_vector(analysis_type, corpus, filter_semtype, semtype = None):
     test = vectorized_annotations(ref, analysis_type, labels)
     
     if analysis_type != 'cui':
-        ref = np.asarray(flatten_list(test), dtype=np.uint8) 
+        ref = np.asarray(flatten_list(test)) 
     else: 
-        ref = np.asarray(test, dtype=np.int16)
+        ref = np.asarray(test)
 
     return ref
 
@@ -1902,6 +2002,73 @@ def majority_vote(test, analysis_type, corpus, run_type, filter_semtype, semtype
     
     return out
 
+#http://stackoverflow.com/questions/4284991/parsing-nested-parentheses-in-python-grab-content-by-level
+def parenthetic_contents(string):
+    """Generate parenthesized contents in string as pairs (level, contents)."""
+    stack = []
+    for i, c in enumerate(string):
+        if c == '(':
+            stack.append(i)
+        elif c == ')' and stack:
+            start = stack.pop()
+            yield (len(stack), string[start + 1: i])
+
+# get all baby ensembles for given input
+def get_baby_ensembles(sentence):
+    comp=[]
+    separator=["^","|","&"]
+    for l in list(parenthetic_contents(sentence)):
+        if len(l[1])==3:
+            print('a', l[1][0], l[1][-1])
+            comp.append((l[1][0], l[1][-1], l[1][1], l[0]))
+            #comp.append((l[1][0], l[1]))
+            #comp.append((l[1][-1], l[1]))
+        elif l[1][-1] != ')' and len(l[1]) > 3:
+            if l[1][-2] in separator:
+
+                test = l[1][0:-2] + l[1][-2].replace(l[1][-2], " ") + l[1][-1:]
+                print('b', l[1][-1:], l[1][0:-2])
+                comp.append((l[1][-1:], l[1][0:-2], l[1][-2], l[0]))
+        else:
+            #for i in list(parenthetic_contents(l[1])):
+            print('c', [i for i in list(parenthetic_contents(l[1])) if i[0]==0])
+            a='(' + [i for i in list(parenthetic_contents(l[1])) if i[0]==0][1][1] + ')'
+            b='(' + [i for i in list(parenthetic_contents(l[1])) if i[0]==0][0][1] + ')'
+            idx_a=sentence.index(a)
+            idx_b=sentence.index(b)
+            if a < b:
+                idx = idx_b
+            else:
+                idx = idx_a
+            comp.append((a, b, sentence[idx-1:idx], (l[0])))
+
+    return comp
+
+# generate complementarity measu<F3>res for given input
+def ad_hoc_complementarity(sentence, mtype):
+
+    comp = get_baby_ensembles(sentence[1])
+    # generate complementarity 
+    for c in comp:
+        # no semtype filtering
+        main(None, c, mtype, sentence[0], sentence[1], True, False)
+        #main('Disorders,Sign_Symptom', c, True, True)
+
+# generate complementarity measu<F3>res for given input
+def ad_hoc_complementarity_st(sentence, mtype, st):
+
+    comp = get_baby_ensembles(sentence[1])
+    for c in comp:
+        # no semtype filtering
+        main(st, c, mtype, sentence[0], sentence[1], True, True)
+        #main('Disorders,Sign_Symptom', c, True, True)
+
+def ad_hoc_complementarity_test(st, sentence):
+
+    main(st, sentence, 'F1', .9, 'A^C', True, True)
+        #main('Disorders,Sign_Symptom', c, True, True)
+
+
 def get_ensemble_combos_measure_st():
     
     print(semtypes, systems)
@@ -1916,6 +2083,77 @@ def get_ensemble_combos_measure_st():
 
         get_ensemble_combos_measure([replacer(n, n) for n in test], filter_semtype, semtype)
 
+def get_ann_vectors(analysis_type, corpus, filter_semtype, semtype):
+    class Results(object):
+        def __init__(self):
+            self.system_merges = pd.DataFrame()
+
+    r = Results()
+
+    # TODO for system and reference data annotation sets:
+    ann_dict = {}
+    labels = get_labels(analysis_type, corpus, filter_semtype, semtype)
+
+    system_annotations = 'analytical_disambiguated_i2b2_full.csv'
+    gs_ann = 'i2b2_gs.csv'
+    gs_len = 'i2b2_doc_len.csv'
+    cols_to_keep = ['begin', 'end', 'case', 'label']
+
+    docs = get_docs(corpus)
+
+    ########### GS vector here:
+    #ref_ann=pd.read_csv(data_dir + gs_ann, dtype={'file': str})
+    #ref_ann = ref_ann.rename(columns={"start": "begin", "file": "case"}) # `note_id` may be `file`
+    #ref_ann = set_labels(ref_ann)
+    #ref_ann = ref_ann[cols_to_keep]
+
+    ann_dict['reference'] = list(get_reference_vector(analysis_type, corpus, filter_semtype, semtype))
+    #ann_dict['reference'] = vectorized_annotations(ref_ann, 'entity', labels)
+    ann_dict['reference'] = [int(i) for i in ann_dict['reference']]
+    ########### system vectors here:
+
+    test = get_valid_systems(systems, semtype)
+
+    for system in test:
+
+        sys = get_sys_data(system, analysis_type, corpus, filter_semtype, semtype)
+
+        r.system_merges = sys
+        docs = get_docs(corpus)
+
+        #r.system_merges = sys.loc[sys.system==sysstem]
+        sys = get_sys_ann(analysis_type, r)
+
+        sys2 = []
+        s2 = []
+
+        #if analysis_type != 'cui':
+        #    s = list(sys.itertuples(index=False))
+        
+        for k, v in docs.items():
+            s1 = list(sys.loc[sys.case == k].itertuples(index=False))
+            #s1 = [i for i in s if i.case==k] # list(sys.loc[sys.case == docs[n][0]].itertuples(index=False))
+            sys1 = label_vector(v, s1, labels)
+            sys2.append(sys1)
+        
+        ann_dict[system] = flatten_list(sys2)
+        ann_dict[system] = [int(i) for i in ann_dict[system]]
+
+    return ann_dict
+
+def get_ensemble_combos_measure_no_st():
+    
+    print(systems)
+
+    #for semtype in semtypes:
+
+    replacements = {'biomedicus':'A', 'clamp':'B', 'ctakes':'C', 'metamap':'D', 'quick_umls':'E'}
+    replacer = replacements.get  # For faster gets.
+
+    print([replacer(n, n) for n in systems])
+
+    get_ensemble_combos_measure([replacer(n, n) for n in systems], filter_semtype)
+
 def get_ensemble_combos_measure(systems, filter_semtype, semtype=None):
 # get a ensemble combinations
 
@@ -1924,15 +2162,23 @@ def get_ensemble_combos_measure(systems, filter_semtype, semtype=None):
 
     def wrap_ad_hoc_measure():
          def retval(expr):
-             return ad_hoc_measure(expr, analysis_type, corpus, 'precision', filter_semtype, semtype)
-         print(retval)
+             return ad_hoc_measure(expr, analysis_type, corpus, 'F1', filter_semtype, semtype)
          return retval
 
     def get_result():
         result = cs.get_best_ensembles(score_method=wrap_ad_hoc_measure(),
                         names=systems,
+                        used_binops=['&', '|'],
+                        used_unops=['~'],
+                        minimum_increase=0.1)
+
+        ''''
+        result = cs.get_best_ensembles(score_method=wrap_ad_hoc_measure(),
+                        names=systems,
                         operators=['&', '|'],
-                        minimum_increase=-1)
+                        minimum_increase=-1) # fv all: 0.06 '((A|B)&C)'
+                                           # mipacq: '((((D|A)&E)&B)|C)'
+        '''
 
         return result
 
@@ -2006,10 +2252,13 @@ def ad_hoc_measure(statement, analysis_type, corpus, measure, filter_semtype, se
     if filter_semtype:
         d['semtype'] = semtype
 
+    now = datetime.now()
+    now = now.strftime("%m-%d-%Y")
+ 
     if filter_semtype:
-        file_name = corpus + '_' + measure +  '_st.csv'
+        file_name = corpus + '_' + measure + '_st_' + now + '.csv'
     else:
-        file_name = corpus + '_' + measure +  '.csv'
+        file_name = corpus + '_' + measure + '_' + now + '.csv'
 
     if measure in ['F1', 'precision', 'recall']:
         
@@ -2072,7 +2321,7 @@ def main_test():
     file = corpus + '_vote_' + analysis_type + '_' + str(filter_semtype) + '_' + str(timestamp) +'.csv'
     out.drop_duplicates().to_csv(data_out / file)
 
-def get_ensemble_combos(systems=['A','B','C','D']):
+def get_ensemble_combos(systems=['A','B','C','D','E']):
 # get a ensemble combinations
 
     def length_score(expr):
@@ -2087,7 +2336,7 @@ def get_ensemble_combos(systems=['A','B','C','D']):
     def get_result():
         result = cs.get_best_ensembles(score_method=wrap_ad_hoc_measure(),
                         names=systems,
-                        used_binops=[andop, orop, xorop],
+                        used_binops=[andop, orop],
                         used_unops=[notop],
                         minimum_increase=-1)
 
@@ -2096,7 +2345,7 @@ def get_ensemble_combos(systems=['A','B','C','D']):
     return [r[0] for r in get_result()]
 
     
-def main(semtype, c, out_file=False, filter_semtype=True):
+def main(semtype, c, measure_type=None, measure=None, sentence=None, out_file=False, filter_semtype=True):
    
     #now = datetime.now()
     #timestamp = datetime.timestamp(now)
@@ -2128,13 +2377,55 @@ def main(semtype, c, out_file=False, filter_semtype=True):
     r.sysB = ad_hoc_sys(c[1], analysis_type, corpus, filter_semtype, False, semtype) # c[1]
 
     out = vectorized_complementarity(r, analysis_type, corpus, filter_semtype, semtype)
+
+
+    # get individual left and right evaluation metric prior to merging them
+    left_ = ad_hoc_sys(c[0], analysis_type, corpus, filter_semtype, True, semtype)
+    right_ = ad_hoc_sys(c[1], analysis_type, corpus, filter_semtype, True, semtype)
+  
+    left_['merge'] = c[0] 
+    left_['p_ci'] = str((left_['p_lower_bound'], left_['p_upper_bound'])) 
+    left_['r_ci'] = str((left_['r_lower_bound'], left_['r_upper_bound']))  
+    left_['f_ci'] = str((left_['f_lower_bound'], left_['f_upper_bound'])) 
+
+    right_['merge'] = c[1]
+    right_['p_ci'] = str((right_['p_lower_bound'], right_['p_upper_bound'])) 
+    right_['r_ci'] = str((right_['r_lower_bound'], right_['r_upper_bound']))  
+    right_['f_ci'] = str((right_['f_lower_bound'], right_['f_upper_bound'])) 
+
+    out['n_ref'] = left_['n_gold']
+    out['TP_left'] = left_['TP'] 
+    out['TN_left'] = left_['TN'] 
+    out['FP_left'] = left_['FP'] 
+    out['FN_left'] = left_['FN'] 
+    out['n_sys_left'] = left_['n_sys']
+    out['precision_left'] = left_['precision']
+    out['recall_left'] = left_['recall']
+    out['f1_left'] = left_['F1']
+    out['merge_left'] = left_['merge']
+    out['p_ci_left'] = left_['p_ci']
+    out['r_ci_left'] = left_['r_ci']
+    out['f_ci_left'] = left_['f_ci']
+
+    out['TP_right'] = right_['TP'] 
+    out['TN_right'] = right_['TN'] 
+    out['FP_right'] = right_['FP'] 
+    out['FN_right'] = right_['FN'] 
+    out['n_sys_right'] = right_['n_sys']
+    out['precision_right'] = right_['precision']
+    out['recall_right'] = right_['recall']
+    out['f1_right'] = right_['F1']
+    out['merge_right'] = right_['merge']
+    out['p_ci_right'] = right_['p_ci']
+    out['r_ci_right'] = right_['r_ci']
+    out['f_ci_right'] = right_['f_ci']
     # --> get standard metrics
 
     print('(' + c[0] + '&' + c[1] + ')')
     print('(' + c[0] + '|' + c[1] + ')')
     print('(' + c[0] + '^' + c[1] + ')')
 
-    statement = '(' + c[0] + '&' + c[1] + ')'
+    statement = '('  + c[0] + '&' +  c[1] + ')'
 
     and_ = ad_hoc_sys(statement, analysis_type, corpus, filter_semtype, True, semtype)
 
@@ -2177,6 +2468,11 @@ def main(semtype, c, out_file=False, filter_semtype=True):
     out['p_ci_and'] = and_['p_ci']
     out['r_ci_and'] = and_['r_ci']
     out['f_ci_and'] = and_['f_ci']
+    out['TP_and'] = and_['TP'] 
+    out['TN_and'] = and_['TN'] 
+    out['FP_and'] = and_['FP'] 
+    out['FN_and'] = and_['FN'] 
+    out['n_sys_and'] = and_['n_sys']
     
     out['precision_or'] = or_['precision']
     out['recall_or'] = or_['recall']
@@ -2185,6 +2481,11 @@ def main(semtype, c, out_file=False, filter_semtype=True):
     out['p_ci_or'] = or_['p_ci']
     out['r_ci_or'] = or_['r_ci']
     out['f_ci_or'] = or_['f_ci']
+    out['TP_or'] = or_['TP'] 
+    out['TN_or'] = or_['TN'] 
+    out['FP_or'] = or_['FP'] 
+    out['FN_or'] = or_['FN'] 
+    out['n_sys_or'] = or_['n_sys']
 
     out['precision_xor'] = xor_['precision']
     out['recall_xor'] = xor_['recall']
@@ -2193,17 +2494,43 @@ def main(semtype, c, out_file=False, filter_semtype=True):
     out['p_ci_xor'] = xor_['p_ci']
     out['r_ci_xor'] = xor_['r_ci']
     out['f_ci_xor'] = xor_['f_ci']
-    out['nterms'] = n
+    out['TP_xor'] = xor_['TP'] 
+    out['TN_xor'] = xor_['TN'] 
+    out['FP_xor'] = xor_['FP'] 
+    out['FN_xor'] = xor_['FN'] 
+    out['n_sys_xor'] = xor_['n_sys']
     
+    out['nterms'] = n
+    out['sentence'] = sentence
+    out['moi'] = measure
+
+    out['mtype'] = measure_type
+    if measure_type == 'F1':
+        out['max_baby_measure'] = out[['f1_and','f1_or','f1_xor']].apply(max, axis=1)
+        out['min_baby_measure'] = out[['f1_and','f1_or','f1_xor']].apply(min, axis=1)
+    elif measure_type == 'F1':
+        out['max_baby_measure'] = out[['precision_and','precision_or','precision_xor']].apply(max, axis=1)
+        out['min_baby_measure'] = out[['precision_and','precision_or','precision_xor']].apply(min, axis=1)
+    else:    
+        out['max_baby_measure'] = out[['recall_and','recall_or','recall_xor']].apply(max, axis=1)
+        out['min_baby_measure'] = out[['recall_and','recall_or','recall_xor']].apply(min, axis=1)
+    
+    out['order'] = c[3]
+    out['operator'] = c[2]
     # write to file 
+
+    #if not filter_semtype:
+    now = datetime.now()
+    now = now.strftime("%m-%d-%Y")
+    
+    #file_out = 'complement_' + corpus + '_filter_semtype_' + str(filter_semtype) + '_' + str(now) +'.csv'
+    file_out = 'complement_' + corpus + '_filter_semtype_' + str(filter_semtype) + '_1234.csv'
+
     if out_file:
         with open(data_out / file_out, 'a') as f:
             out.to_csv(f, header=f.tell()==0)
     else:
-        print(out)
         return out
-
-
 
 if __name__ == '__main__':
 
@@ -2267,5 +2594,114 @@ for sys in systems:
             for sys in systems:
                 if sys in fx.system.values:
                     ref_ann.loc[row.Index,sys] = 1
+
+
+# generate complementarity:
+import pandas as pd
+
+measures = ['F1', 'precision', 'recall']
+data=pd.read_csv('/Users/gms/development/nlp/nlpie/data/ensembling-u01/output/mipacq_F1_10-03-2021.csv')
+for measure in measures:
+    merges=data.sort_values(measure, ascending=False)
+    merges['measure_system'] = merges[[measure, 'system']].apply(tuple, axis=1)
+    sentences=merges.head(1)['measure_system'].to_list()
+    for sentence in sentences:
+        nec.ad_hoc_complementarity(sentence, measure)
+
+
+measures = ['F1', 'precision', 'recall']
+data=pd.read_csv('/Users/gms/development/nlp/nlpie/data/ensembling-u01/output/fairview_F1_st_10-08-2021.csv')
+for measure in measures:
+    groups=set(data.semtype.tolist())
+    for group in groups: 
+        df = data.loc[data.semtype==group]
+        merges=df.sort_values(measure, ascending=False)
+        merges['measure_system'] = merges[[measure, 'system']].apply(tuple, axis=1)
+        sentences=merges.head(1)['measure_system'].to_list()
+        for sentence in sentences:
+            nec.ad_hoc_complementarity_st(sentence, measure, group)
+
+
+# get data for monotinicity
+# https://stackoverflow.com/questions/4983258/python-how-to-check-list-monotonicity
+
+import itertools
+import operator
+import numpy as np 
+import pandas as pd
+
+def monotone_increasing(lst):
+    pairs = zip(lst, lst[1:])
+    return all(itertools.starmap(operator.le, pairs))
+
+def monotone_decreasing(lst):
+    pairs = zip(lst, lst[1:])
+    return all(itertools.starmap(operator.ge, pairs))
+
+def monotone(lst):
+    return monotone_increasing(lst) or monotone_decreasing(lst)
+
+
+
+data=pd.read_csv('/Users/gms/development/nlp/nlpie/data/ensembling-u01/output/complement_mipacq_filter_semtype_False_10-12-2021.csv')
+measures = ['f1', 'precision', 'recall']
+
+for mtype in measures[0:1]: 
+    sentences=set(data.loc[data.mtype==mtype.upper()].sentence.tolist())
+
+    cols_to_keep=['mtype', 'moi', 'merge_right', 'precision_right', 'recall_right', 'f1_right','merge_left', 'precision_left', 'recall_left',
+           'f1_left', 'f1-score', 'precision_or', 'recall_or', 'f1_or', 'precision_and', 'recall_and', 'f1_and', 'sentence', 'order', 'operator', 'merge_left', 'merge_right']
+
+    monotonic = []
+    increase = []
+    decrease = []
+    nonmono = []
+
+    m=0
+    n=0
+
+    for s in list(sentences)[0:1]:
+        test=data.loc[(data.sentence==s)&(data.mtype==mtype.upper())]
+        test[mtype + '-score'] = np.where(test['operator']=='&', test[mtype + '_and'], test[mtype + '_or'])
+        #print(test[cols_to_keep].sort_values(['order','f1-score'], ascending=False))
+        t=test[cols_to_keep].sort_values(['order','f1-score'], ascending=False)
+        o=set(t.order.to_list())
+        scores=[]
+        #if t.moi.values[0] not in scores:
+        #    scores.append(t.moi.values[0])
+        for i in o:
+            #print(t.loc[t.order==i])
+            u=t.loc[t.order==i]
+            #if len(u['merge_left'].values[0][0]) == 1:
+            #    print(s,'left', u['merge_left'].values[0][0])
+            #    scores.append(u[mtype+'_left'].values[0])
+
+            #if len(u['merge_right'].values[0][0]) == 1:
+            #    print('right', u['merge_right'].values[0][0])
+            #    scores.append(u[mtype+'_right'].values[0])
+
+
+            scores.append(u[mtype + '-score'].values[0])
+            print(scores, u[mtype + '-score'].values[0])
+    
+        print('monotonic', monotone(scores[::-1]))
+        print('monotonic increasing', monotone_increasing(scores[::-1]))
+        print('monotonic decreasing', monotone_decreasing(scores[::-1]))
+
+        if monotone(scores[::-1]):
+            m+=1
+        else:
+            n+=1
+
+        if monotone_increasing(scores[::-1]):
+            increase.append(1)
+        if monotone_decreasing(scores[::-1]):
+            decrease.append(1)
+    
+    monotonic.append(m)
+    nonmono.append(n)
+    index = ['snail', 'pig'] 
+    df = pd.DataFrame({'mono': monotone, 'nonmono': nonmono}, index=index)
+            
 
 '''

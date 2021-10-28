@@ -17,42 +17,66 @@ def get_systems_set(sql, engine):
     
 def get_sem_types(engine):
 
-    # semantic types for filtering
-    sql = """SELECT st.tui as tui, abbreviation, clamp_name, ctakes_name 
+    # semantic types for filtering: 'Disorders', 'Procedures', 'Anatomy', 'Chemicals & Drugs'
+    sql = """SELECT st.tui as tui, abbreviation, clamp_name, ctakes_name, group_name 
             FROM semantic_groups sg join semantic_types st on sg.tui = st.tui 
-            where group_name = 'Disorders';"""
+            where group_name in ('Disorders');"""
       
     return pd.read_sql(sql, engine)
 
-def get_data_file(file_name, engine):
+def get_data_file(file_name, st=None):
 
-    st = get_sem_types(engine)
+    if len(st) > 0: 
+        df = pd.read_csv(data_folder / file_name, dtype={'note_id': str})
 
-    df = pd.read_csv(data_folder / file_name, dtype={'note_id': str})
+        if corpus != 'medmentions':
+            df = df[['begin', 'end', 'note_id', 'score', 'semtypes', 'system', 'corpus']]
+        else:
+            df = df[['begin', 'end', 'note_id', 'score', 'semtype', 'polarity', 'system', 'cui']]
 
-    df = df[['begin', 'end', 'note_id', 'score', 'semtypes', 'system', 'cui', 'corpus']]
+        mask = [st for st in list(set(st.tui.tolist()))]
+        qumls = df.loc[df.system=='quick_umls']
+        qumls = qumls[qumls.semtypes.isin(mask)]
 
-    mask = [st for st in list(set(st.tui.tolist()))]
-    qumls = df.loc[df.system=='quick_umls']
-    qumls = qumls[qumls.semtypes.isin(mask)]
+        b9 = df.loc[df.system=='biomedicus']
+        b9 = b9[b9.semtypes.isin(mask)]
 
-    b9 = df.loc[df.system=='biomedicus']
-    b9 = b9[b9.semtypes.isin(mask)]
+        if 'Anatomy' not in st.group_name.tolist():
+            mask = [st.split(',')  for st in list(set(st.clamp_name.tolist()))][0]
+            clamp = df.loc[df.system=='clamp']
+            clamp = clamp[clamp.semtypes.isin(mask)]
+        else:
+            clamp = None
+        
+        mask = [st.split(',')  for st in list(set(st.ctakes_name.tolist()))][0]
+        ctakes =  df.loc[df.system=='ctakes']
+        ctakes = ctakes[ctakes.semtypes.isin(mask)]
 
-    mask = [st.split(',')  for st in list(set(st.clamp_name.tolist()))][0]
-    clamp = df.loc[df.system=='clamp']
-    clamp = clamp[clamp.semtypes.isin(mask)]
+        mask = [st for st in list(set(st.abbreviation.tolist()))]
+        mm =  df.loc[df.system=='metamap']
+        mm = mm[mm.semtypes.isin(mask)]
+    else:
+        df = pd.read_csv(data_folder / file_name, dtype={'note_id': str})
 
-    mask = [st.split(',')  for st in list(set(st.ctakes_name.tolist()))][0]
-    ctakes =  df.loc[df.system=='ctakes']
-    ctakes = ctakes[ctakes.semtypes.isin(mask)]
+        if corpus in ['medmentions']:
+            df = df[['begin', 'end', 'note_id', 'score', 'semtype', 'polarity', 'system', 'cui']]
+        elif corpus in ['mipacq']:
+            df = df[['begin', 'end', 'note_id', 'score', 'semtypes', 'system', 'cui']]
+        else:
+            df = df[['begin', 'end', 'note_id', 'score', 'semtypes', 'system']]
 
-    mask = [st for st in list(set(st.abbreviation.tolist()))]
-    mm =  df.loc[df.system=='metamap']
-    mm = mm[mm.semtypes.isin(mask)]
+        qumls = df.loc[df.system=='quick_umls']
+
+        b9 = df.loc[df.system=='biomedicus']
+
+        clamp = df.loc[df.system=='clamp']
+        
+        ctakes =  df.loc[df.system=='ctakes']
+
+        mm =  df.loc[df.system=='metamap']
 
     return qumls, b9, clamp, ctakes, mm
-    
+   
 def get_data(engine):
 
     ### ------> qumls
@@ -168,8 +192,15 @@ def disambiguate(arg):
     arg['length'] = (arg.end - arg.begin).abs()
     
     arg.sort_values(by=['note_id','begin'],inplace=True)
+   
+    if corpus in ['medmentions']:
+        df = arg[['begin', 'end', 'note_id', 'cui', 'semtype', 'score', 'length', 'system', 'polarity']].copy()
+    #df = arg[['begin', 'end', 'note_id', 'score', 'length', 'system', 'cui', 'semtypes']].copy()
+    #elif corpus in ['mipacq']:
+    #    df = arg[['begin', 'end', 'note_id', 'cui', 'semtypes', 'score', 'length', 'system']].copy()
+    else:
+        df = arg[['begin', 'end', 'note_id', 'score', 'length', 'system', 'semtypes']].copy()
     
-    df = arg[['begin', 'end', 'note_id', 'cui', 'concept', 'semtype', 'score', 'length', 'type', 'system', 'polarity']].copy()
     df.sort_values(by=['note_id','begin'],inplace=True)
     
     data = []
@@ -180,8 +211,12 @@ def disambiguate(arg):
         # https://stackoverflow.com/questions/58192068/is-it-possible-to-use-pandas-overlap-in-a-dataframe
         iix = pd.IntervalIndex.from_arrays(df.begin, df.end, closed='neither')
         span_range = pd.Interval(row.begin, row.end)
+        
         fx = df[iix.overlaps(span_range)].copy()
- 
+        fx.sort_values(by=['note_id','begin'],inplace=True)
+        
+        fx = fx.drop_duplicates(subset=['length'])
+
         maxLength = fx['length'].max()
         minLength = fx['length'].min()
         maxScore = abs(float(fx['score'].max()))
@@ -189,39 +224,73 @@ def disambiguate(arg):
         
         if maxLength > minLength:
             fx = fx[fx['length'] == maxLength]
-        
         elif maxScore > minScore:
             fx = fx[fx['score'] == maxScore]        
-            
+            if len(fx) > 1:
+                n = len(fx)
+                fx.drop(fx.tail(n-1).index, inplace = True)
+        
         data.append(fx)
 
     out = pd.concat(data, axis=0)
-   
+
     # randomly reindex to keep random row when dropping duplicates: https://gist.github.com/cadrev/6b91985a1660f26c2742
-    out.reset_index(inplace=True)
+    out.reset_index(drop=True, inplace=True)
     out = out.reindex(np.random.permutation(out.index))
-    
-    return out.drop_duplicates(subset=['begin', 'end', 'note_id', 'polarity'])
+ 
+    '''
+    # instead: WHILE #overlaps in list using get_overlaps > 1
+    run = True 
+    while run:
+        test=get_overlaps(out)
 
+        run = False
+
+        i = 0
+        for t in test:
+            print(t)
+            if len(t) > 0:
+                run = True
+                out = disambiguate(out)
+                print('len', llen(t))    
+            i+=1
+            if i%100==0:
+                print(i, run)
+    '''
     
-def main():
-    engine = create_engine('mysql+pymysql://gms:nej123@localhost/med_mentions', pool_pre_ping=True)
-    print('BEGIN')
+    return out.drop_duplicates(subset=['begin', 'end', 'note_id'])
+    #return out.drop_duplicates(subset=['begin', 'end', 'note_id', 'polarity'])
+
+def get_overlaps(df):
+        
+    dfs = []
+
+    df = df.sort_values('begin').reset_index(drop=True)
+    idx = 0
+    while True:
+        lower = 'begin'        
+        low = df[lower][idx]
+        upper = 'end'        
+        high = df[upper][idx]
+        sub_df = df[(df['begin'] <= high) & (low <= df['begin'])]
+        dfs.append(sub_df)
+        idx = sub_df.index.max() + 1
+        if idx > df.index.max():
+            break
+
+        #print('max/min')
+        #print(len(dfs))
+
+    return dfs
+
+def assemble_data(cases, qumls, b9, clamp, ctakes, mm, group=None): 
     
-    #GENERATE analytical table
     analytical_cui = pd.DataFrame()
+    if corpus not in ['medmentions']:
+        cols_to_keep=['begin', 'end', 'semtypes']
+    else:
+        cols_to_keep=['begin', 'end', 'semtype']
 
-    # TODO get cases method
-    sql = """SELECT  distinct file as note_id 
-             FROM medmentions_annotations
-          """
-           
-    notes = pd.read_sql(sql, engine)
-    
-    cases = set(notes['note_id'].tolist())
-
-    qumls, b9, clamp, ctakes, mm = get_data(engine)
-    
     i = 0
     for case in cases:
         print(case, i)
@@ -230,45 +299,97 @@ def main():
         ### ------> qumls
         
         test = qumls[qumls['note_id'] == case].copy()
+        test = test.sample(frac=1).drop_duplicates(subset=cols_to_keep)
         print('qumls', len(test))
 
         if len(test) > 0:
-            #frames = [ analytical_cui, disambiguate(test) ]
-            frames = [ analytical_cui, test ]
+            frames = [ analytical_cui, disambiguate(test) ]
+            #frames = [ analytical_cui, test ]
             analytical_cui = pd.concat(frames, ignore_index=True, sort=False) 
         
         ### ------>  b9
         test = b9[b9['note_id'] == case].copy()
+        test = test.sample(frac=1).drop_duplicates(subset=cols_to_keep)
         print('b9 umls', len(test))
 
         if len(test) > 0:
-            #frames = [ analytical_cui, disambiguate(test) ]
-            frames = [ analytical_cui, test ]
+            frames = [ analytical_cui, disambiguate(test) ]
+            #frames = [ analytical_cui, test ]
             analytical_cui = pd.concat(frames, ignore_index=True, sort=False)  
 
         ### ------>  clamp
-        test = clamp[clamp['note_id'] == case].copy()
-        print('clamp', len(test))
-        if len(test) > 0:
-            #frames = [ analytical_cui, disambiguate(test) ]
-            frames = [ analytical_cui, test ]
-            analytical_cui = pd.concat(frames, ignore_index=True, sort=False) 
+        
+        if group != 'Anatomy':
+            test = clamp[clamp['note_id'] == case].copy()
+            test = test.sample(frac=1).drop_duplicates(subset=cols_to_keep)
+            print('clamp', len(test))
+            if len(test) > 0:
+                frames = [ analytical_cui, disambiguate(test) ]
+                #frames = [ analytical_cui, test ]
+                analytical_cui = pd.concat(frames, ignore_index=True, sort=False) 
 
         ### ------>  ctakes
         test = ctakes[ctakes['note_id'] == case].copy()
+        test = test.sample(frac=1).drop_duplicates(subset=cols_to_keep)
         print('ctakes mentions', len(test))
         if len(test) > 0:
-            #frames = [ analytical_cui, disambiguate(test) ]
-            frames = [ analytical_cui, test ]
+            frames = [ analytical_cui, disambiguate(test)]
+            #frames = [ analytical_cui, test ]
             analytical_cui = pd.concat(frames, ignore_index=True, sort=False) 
 
         ### ------>  mm
         test = mm[mm['note_id'] == case].copy()
+        test = test.sample(frac=1).drop_duplicates(subset=cols_to_keep)
         print('mm candidate', len(test))
         if len(test) > 0:
-            #frames = [ analytical_cui, disambiguate(test) ]
-            frames = [ analytical_cui, test ]
+            frames = [ analytical_cui, disambiguate(test) ]
+            #frames = [ analytical_cui, test ]
             analytical_cui = pd.concat(frames, ignore_index=True, sort=False) 
+
+    return analytical_cui
+    
+def main(corpus, semtypes=None):
+    if corpus not in ['medmentions']:
+        engine = create_engine('mysql+pymysql://gms:nej123@localhost/concepts', pool_pre_ping=True)
+    else:
+        engine = create_engine('mysql+pymysql://gms:nej123@localhost/med_mentions', pool_pre_ping=True)
+    print('BEGIN')
+    
+    #GENERATE analytical table
+
+    # TODO get cases method
+    sql = """SELECT  distinct file as note_id 
+             FROM fairview_all
+          """
+    
+    file ='analytical_' + corpus + '.csv'
+    #file = 'analytical_disambiguated_fairview_1633366674.934254.csv'
+    notes = pd.read_sql(sql, engine)
+    
+    cases = set(notes['note_id'].tolist())
+
+    #qumls, b9, clamp, ctakes, mm = get_data(engine)
+   
+    if semtypes:
+        analytical_cui = pd.DataFrame()
+        st = get_sem_types(engine)
+        groups = set(st.group_name.tolist())
+
+        for group in groups:
+            print("Group:", group)
+
+
+            semtypes = st.loc[st.group_name==group]
+
+            qumls, b9, clamp, ctakes, mm = get_data_file(file, semtypes)
+
+            frames = [analytical_cui, assemble_data(cases, qumls, b9, clamp, ctakes, mm, group)]
+            analytical_cui = pd.concat(frames, ignore_index=True, sort=False) 
+            analytical_cui['sem_group']=group
+    else:
+            qumls, b9, clamp, ctakes, mm = get_data_file(file)
+            analytical_cui = assemble_data(cases, qumls, b9, clamp, ctakes, mm)
+            
         
     now = datetime.now()
     timestamp = datetime.timestamp(now)
@@ -279,21 +400,24 @@ def main():
     
 if __name__ == '__main__':
     #%prun main()
-    corpus = 'medmentions'
-    analytical_cui = main()
+    corpus = 'fairview'
+    semtype = 'Finding'
+    analytical_cui = main(corpus, semtype)
     elapsed = (time.time() - start)
     print('fini!', 'time:', elapsed)
     now = datetime.now()
     timestamp = datetime.timestamp(now)
     #analytical_cui.ro_sql("analytical_cui" + timestamp, engine)
-    file = 'analytical_' + corpus + '_' + str(timestamp) +'.csv'
-    
+    if semtype:
+        file = 'analytical_disambiguated_' + corpus + '_' + semtype + '_' + str(timestamp) +'.csv'
+    else: 
+        file = 'analytical_disambiguated_' + corpus + '_' + str(timestamp) +'.csv'
     analytical_cui.to_csv(data_folder / file)
     
 # fill in null conccepts:
 '''
 data='/mnt/DataResearch/DataStageData/ed_provider_notes/output/'
-file='analytical_fairview_cui_filtered_by_semtype_1597485061.111386.csv'
+file='analytical_medmentions_cui_filtered_by_semtype_1597485061.111386.csv'
 df = pd.read_csv(data+file)
 sg = df
 
