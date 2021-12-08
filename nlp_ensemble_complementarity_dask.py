@@ -63,8 +63,8 @@ from sklearn.metrics import confusion_matrix
 #corpus = 'clinical_trial2'
 #corpus = 'fairview'
 #corpus = 'i2b2'
-#corpus = 'fairview'
-corpus = 'mipacq'
+corpus = 'fairview'
+#corpus = 'mipacq'
 #corpus = 'medmentions'
 
 # TODO: create config.py file
@@ -103,8 +103,7 @@ table_name = ref_data(corpus)
 
 # TODO: move to click param
 # STEP-(8A): FILTER BY SEMTYPE
-filter_semtype = True #False #True #False #True #False #True #False #True #False #True #False #True#False #True#False #True 
-
+filter_semtype = True# False #True #False #True #False #True #False #True #False #True #False #True #False #True#False #True#False #True 
 # STEP-(6B): ENTER DETAILS FOR ACCESSING SYSTEM ANNOTATION DATA
 
 def sys_data(corpus, analysis_type):
@@ -138,8 +137,8 @@ def ref_semtypes(filter_semtype, corpus):
             semtypes = ['test,treatment', 'problem']
             #semtypes = ['problem']
         elif corpus == 'mipacq':
-            #semtypes = ['Anatomy', 'Procedures', 'Disorders,Sign_Symptom', 'Chemicals_and_drugs']
-            semtypes = ['Disorders,Sign_Symptom']
+            semtypes = ['Anatomy', 'Procedures', 'Disorders,Sign_Symptom', 'Chemicals_and_drugs']
+            #semtypes = ['Disorders,Sign_Symptom']
         elif corpus == 'medmentions':
             semtypes = ['Anatomy', 'Disorders', 'Chemicals & Drugs', 'Procedures']
 
@@ -2062,6 +2061,7 @@ def ad_hoc_complementarity_st(sentence, mtype, st):
         # no semtype filtering
         main(st, c, mtype, sentence[0], sentence[1], True, True)
         #main('Disorders,Sign_Symptom', c, True, True)
+        #main(semtype, c, measure_type=None, measure=None, sentence=None, out_file=False, filter_semtype=True)
 
 def ad_hoc_complementarity_test(st, sentence):
 
@@ -2530,6 +2530,7 @@ def main(semtype, c, measure_type=None, measure=None, sentence=None, out_file=Fa
         with open(data_out / file_out, 'a') as f:
             out.to_csv(f, header=f.tell()==0)
     else:
+        print(out[['F1-score_comp','merge_left','merge_right','operator', 'sentence', 'f1_and', 'f1_or', 'order']])
         return out
 
 if __name__ == '__main__':
@@ -2617,7 +2618,7 @@ for measure in measures:
         df = data.loc[data.semtype==group]
         merges=df.sort_values(measure, ascending=False)
         merges['measure_system'] = merges[[measure, 'system']].apply(tuple, axis=1)
-        sentences=merges.head(1)['measure_system'].to_list()
+        sentences=merges[100:250]['measure_system'].to_list()
         for sentence in sentences:
             nec.ad_hoc_complementarity_st(sentence, measure, group)
 
