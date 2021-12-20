@@ -3,12 +3,7 @@ import copy
 import itertools
 import operator
 import numpy as np
-import seaborn as sns
-from matplotlib import pyplot as plt
-plt.rcParams["figure.figsize"] = [10, 6]
-# Set up with a higher resolution screen (useful on Mac)
-%config InlineBackend.figure_format = 'retina'
-sns.set()
+pd.options.display.float_format = '{:.5f}'.format
 
 def monotone_increasing(lst):
     pairs = zip(lst, lst[1:])
@@ -27,7 +22,7 @@ corpora = ['fairview', 'i2b2', 'mipacq']
 
 # Create monotoncity summary and top N sub-ensemble decomposition summary
 
-# All groups by corporaaa
+# All groups by corpora
 def get_corpora_all(data_dir, corpora, top=None):
 
     df = pd.DataFrame()
@@ -39,7 +34,7 @@ def get_corpora_all(data_dir, corpora, top=None):
         d2=pd.read_csv(data_dir + 'complement_'+ corpus +'_filter_semtype_False_1234.csv')
         d3=pd.read_csv(data_dir + 'complement_'+ corpus +'_filter_semtype_False_12345.csv')
         
-        data = d1 #pd.concat([d1, d2, d3])
+        data = pd.concat([d1, d2, d3])
         
         #data=pd.read_csv(data_dir + 'complement_'+ corpus +'_filter_semtype_False_10-25-2021.csv')
 
@@ -81,7 +76,8 @@ def get_corpora_all(data_dir, corpora, top=None):
                         'f1-score', 'precision_or', 'recall_or', 'f1_or', 'precision_and', 'recall_and', 'f1_and', 
                         'sentence', 'order', 'operator', 'merge_left', 'merge_right',
                         'max_prop_error_reduction', 'p_comp', 'r_comp', 'F1-score_comp',
-                        'max_baby_measure', 'min_baby_measure', 'nterms']
+                        'max_baby_measure', 'min_baby_measure', 'nterms',
+                        'TP_left', 'FP_left', 'FN_left', 'TP_right', 'FP_right', 'FN_right']
 
             elif mtype == 'precision':
                 cols_to_keep=['mtype', 'moi', 'merge_right', 'precision_right', 'recall_right', 'f1_right',
@@ -89,7 +85,8 @@ def get_corpora_all(data_dir, corpora, top=None):
                         'precision', 'precision_or', 'recall_or', 'f1_or', 'precision_and', 'recall_and', 'f1_and', 
                         'sentence', 'order', 'operator', 'merge_left', 'merge_right',
                         'max_prop_error_reduction', 'p_comp', 'r_comp', 'F1-score_comp',
-                        'max_baby_measure', 'min_baby_measure', 'nterms']
+                        'max_baby_measure', 'min_baby_measure', 'nterms',
+                        'TP_left', 'FP_left', 'FN_left', 'TP_right', 'FP_right', 'FN_right']
 
 
             elif mtype == 'recall':
@@ -98,7 +95,8 @@ def get_corpora_all(data_dir, corpora, top=None):
                         'recall', 'precision_or', 'recall_or', 'f1_or', 'precision_and', 'recall_and', 'f1_and', 
                         'sentence', 'order', 'operator', 'merge_left', 'merge_right',
                         'max_prop_error_reduction', 'p_comp', 'r_comp', 'F1-score_comp',
-                        'max_baby_measure', 'min_baby_measure', 'nterms']
+                        'max_baby_measure', 'min_baby_measure', 'nterms',
+                        'TP_left', 'FP_left', 'FN_left', 'TP_right', 'FP_right', 'FN_right']
 
 
             m=0
@@ -119,7 +117,8 @@ def get_corpora_all(data_dir, corpora, top=None):
                 cols = ['sentence', 'corpus', 'group', 'mtype',
                         'max_prop_error_reduction', 'p_comp', 'r_comp', 'F1-score_comp', 
                         'moi', 'order', 'monotonicity', 'nterms',
-                        'max_baby_measure', 'min_baby_measure', 'max_score', 'min_score', measure]
+                        'max_baby_measure', 'min_baby_measure', 'max_score', 'min_score', measure, 
+                        'TP_left', 'FP_left', 'FN_left', 'TP_right', 'FP_right', 'FN_right']
                 
                 t=test[cols_to_keep].sort_values(['order', measure], ascending=False)
                 t['corpus'] = corpus
@@ -197,7 +196,7 @@ def get_corpora_sg(data_dir, corpora, top=None):
         d2=pd.read_csv(data_dir + 'complement_'+ corpus +'_filter_semtype_True_1234.csv')
         d3=pd.read_csv(data_dir + 'complement_'+ corpus +'_filter_semtype_True_12345.csv')
         
-        data= d1 #pd.concat([d1, d2, d3])
+        data= pd.concat([d1, d2, d3])
 
         #data=pd.read_csv(data_dir + 'complement_'+ corpus +'_filter_semtype_True_10-25-2021.csv')
 
@@ -254,7 +253,8 @@ def get_corpora_sg(data_dir, corpora, top=None):
                             'f1-score', 'precision_or', 'recall_or', 'f1_or', 'precision_and', 'recall_and', 'f1_and', 
                             'sentence', 'order', 'operator', 'merge_left', 'merge_right',
                             'max_prop_error_reduction', 'p_comp', 'r_comp', 'F1-score_comp',
-                            'max_baby_measure', 'min_baby_measure', 'nterms']
+                            'max_baby_measure', 'min_baby_measure', 'nterms',
+                            'TP_left', 'FP_left', 'FN_left', 'TP_right', 'FP_right', 'FN_right']
 
 
                 elif mtype == 'precision':
@@ -263,7 +263,8 @@ def get_corpora_sg(data_dir, corpora, top=None):
                             'precision', 'precision_or', 'recall_or', 'f1_or', 'precision_and', 'recall_and', 'f1_and', 
                             'sentence', 'order', 'operator', 'merge_left', 'merge_right',
                             'max_prop_error_reduction', 'p_comp', 'r_comp', 'F1-score_comp',
-                            'max_baby_measure', 'min_baby_measure', 'nterms']
+                            'max_baby_measure', 'min_baby_measure', 'nterms',
+                            'TP_left', 'FP_left', 'FN_left', 'TP_right', 'FP_right', 'FN_right']
 
                 elif mtype == 'recall':
                     cols_to_keep=['mtype', 'moi', 'merge_right', 'precision_right', 'recall_right', 'f1_right',
@@ -271,7 +272,8 @@ def get_corpora_sg(data_dir, corpora, top=None):
                             'recall', 'precision_or', 'recall_or', 'f1_or', 'precision_and', 'recall_and', 'f1_and', 
                             'sentence', 'order', 'operator', 'merge_left', 'merge_right',
                             'max_prop_error_reduction', 'p_comp', 'r_comp', 'F1-score_comp',
-                            'max_baby_measure', 'min_baby_measure', 'nterms']
+                            'max_baby_measure', 'min_baby_measure', 'nterms',
+                            'TP_left', 'FP_left', 'FN_left', 'TP_right', 'FP_right', 'FN_right']
                 
 
                 m=0
@@ -292,7 +294,8 @@ def get_corpora_sg(data_dir, corpora, top=None):
                     cols = ['sentence', 'corpus', 'group', 'mtype',
                             'max_prop_error_reduction', 'p_comp', 'r_comp', 'F1-score_comp', 
                             'moi', 'order', 'monotonicity', 'nterms',
-                            'max_baby_measure', 'min_baby_measure', 'max_score', 'min_score', measure]
+                            'max_baby_measure', 'min_baby_measure', 'max_score', 'min_score', measure,
+                            'TP_left', 'FP_left', 'FN_left', 'TP_right', 'FP_right', 'FN_right']
                     
                     t=test[cols_to_keep].sort_values(['order', measure], ascending=False)
                     t['corpus'] = corpus
@@ -384,6 +387,8 @@ mm.to_csv(data_dir+'mm_500.csv')
 
 
 #================> Analytical set
+#mm=pd.read_csv('/Users/gms/development/nlp/nlpie/data/ensembling-u01/output/submission/new_ner/complementarity_top_100/mm_500.csv')
+mm=pd.read_csv('/Users/gms/Desktop/ensembling/mm_500.csv')
 mm.reset_index(drop=True, inplace=True)
 
 #out = pd.DataFrame()
@@ -408,10 +413,31 @@ def get_analytic_set(mm, mt, group = 'Disorders'):
     mm['min_r_comp_'] = mm.groupby(['group', 'corpus', 'mtype', 'sentence'])['r_comp'].transform('min')
     mm['max_f1_comp_'] = mm.groupby(['group', 'corpus', 'mtype', 'sentence'])['f1_comp'].transform('max')
     mm['min_f1_comp_'] = mm.groupby(['group', 'corpus', 'mtype', 'sentence'])['f1_comp'].transform('min')
-    #out = pd.concat([test, out])
+    mm['n_sub_ens'] = mm.groupby(['corpus', 'mtype', 'group','sentence'])['sentence'].transform('count')/2
+
+    # imbalance
+    mm['comp_diff_p_r'] = (mm['p_comp'] - mm['r_comp']).abs() 
+    mm['comp_diff_p_r_sum'] = mm.groupby(['group', 'corpus', 'mtype', 'sentence'])['comp_diff_p_r'].transform('sum')
+    mm['comp_diff_p_r_mean'] = mm['comp_diff_p_r_sum']/(2*mm['n_sub_ens'])
+
+    mm['count_diff_p_n_left'] = (mm['FP_left'] - mm['FN_left']).abs() 
+    mm['count_diff_p_n_right'] = (mm['FP_right'] - mm['FN_right']).abs() 
+    mm['count_p_n'] = mm['count_diff_p_n_left'] + mm['count_diff_p_n_right'] 
+    mm['count_p_n_sum'] = mm.groupby(['group', 'corpus', 'mtype', 'sentence'])['count_p_n'].transform('sum')/2
+    mm['count_p_n_mean'] = mm['count_p_n_sum']/mm['n_sub_ens']
+
+    mm['comp_diff_p_r_sq'] =  mm['comp_diff_p_r']*mm['comp_diff_p_r']
+    mm['comp_diff_p_r_sq_sum'] = mm.groupby(['group', 'corpus', 'mtype', 'sentence'])['comp_diff_p_r_sq'].transform('sum')
+    mm['comp_diff_p_r_mean_mse'] = (mm['comp_diff_p_r_sum']/(2*mm['n_sub_ens'])).pow(1./2)
+
+    mm['count_p_n_sq'] =  mm['count_p_n']*mm['count_p_n']
+    mm['count_p_n_sq_sum'] = mm.groupby(['group', 'corpus', 'mtype', 'sentence'])['count_p_n_sq'].transform('sum')
+    mm['count_p_n_mean_mse'] = (mm['count_p_n_sq_sum']/mm['n_sub_ens']).pow(1./2)
+
 
     #out.sort_index().drop_duplicates(subset=['sentence', 'corpus', 'mtype', 'group', 'max_score', 'min_score'])
-    test=mm.sort_index().drop_duplicates(subset=['sentence', 'precision', 'recall', 'f1-score', 'corpus', 'mtype', 'group', 'max_score', 'min_score', 'f1_comp', 'max_f1_comp', 'min_f1_comp', 'max_p_comp', 'min_p_comp', 'max_r_comp', 'min_r_comp'])
+    test=mm.sort_index().drop_duplicates(subset=['sentence', 'precision', 'recall', 'f1-score', 'corpus', 'mtype', 
+        'group', 'max_score', 'min_score', 'f1_comp', 'max_f1_comp', 'min_f1_comp', 'max_p_comp', 'min_p_comp', 'max_r_comp', 'min_r_comp'])
     
     if mt == 'precision':
         test['diff']=test['max_p_comp']-test['min_p_comp']
@@ -477,19 +503,23 @@ def get_out(mm, group, measures):
 ### GET df for analysis!!!!!!!!!!!!!!!!!!!!!!1
 
 groups = ['all', 'Disorders']
+groups = ['Anatomy', 'Chemicals & Drugs', 'Disorders', 'Procedures', 'all']
+
 
 df = pd.DataFrame()
 for group in groups:
     out=get_out(mm, group, ['f1']).sort_values('moi', ascending=False)
 
-    test=out[(out.corpus=='Fairview')]
+    test=out[(out.corpus=='MiPACQ')]
     t=test.drop_duplicates('sentence')
 
     cols=['corpus', 'group', 'moi', 'moi_score_range', 'monotonicity', 'mono']
 
-    cols+=['max_diff', 'min_diff', 'nterms', 'comp_f1_range', 
+    cols+=['max_diff', 'min_diff', 'comp_f1_range', 
         'comp_f1_gain_mse', 'comp_f1_gain_mse_sq', 'comp_f1_range_sq', 
-        'comp_p_gain_mse', 'comp_p_gain_mse_sq', 'comp_r_gain_mse', 'comp_r_gain_mse_sq']
+        'comp_p_range', 'comp_p_gain_mse', 'comp_p_gain_mse_sq', 
+        'comp_r_range', 'comp_r_gain_mse', 'comp_r_gain_mse_sq',
+        'comp_diff_p_r_mean', 'count_p_n_mean', 'comp_diff_p_r_mean_mse', 'sentence']
 
     # mean centered:
     t["mono"] = t["monotonicity"].astype("category").cat.codes
@@ -512,12 +542,18 @@ for group in groups:
 
 
     # mean center
-    
+    '''
     u = t[['max_diff', 'min_diff', 'nterms', 'comp_f1_range', 
         'comp_f1_gain_mse', 'comp_f1_gain_mse_sq', 'comp_f1_range_sq', 
         'comp_p_gain_mse', 'comp_p_gain_mse_sq', 'comp_r_gain_mse', 'comp_r_gain_mse_sq']].apply(lambda x: x-x.mean()).merge(t[cols], how='inner', left_index=True, right_index=True)
+    '''
 
-    df = pd.concat([t[cols], df])
+    # normalize
+
+    u = t[['count_p_n_mean_mse', 'nterms']].apply(lambda x: (x-x.mean())/ x.std(), axis=0).merge(t[cols], how='inner', left_index=True, right_index=True)
+    
+    #df = pd.concat([t[cols], df])
+    df = pd.concat([u, df])
 
 """
 ############### Analysis

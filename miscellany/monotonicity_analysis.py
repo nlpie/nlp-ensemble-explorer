@@ -48,37 +48,53 @@ for group in semgroups:
             #print(df.head())
             #sns.lmplot('diff_', 'score_diff', data=tt,  col='corpus', hue = 'monotonicity', truncate=False, scatter_kws={"marker": "D", "s": 20})
 
-            test_plot=df.drop_duplicates(subset=['sentence', 'corpus', 'mtype'])
-            test_plot['score_diff']=test_plot.score_diff.astype('float64')
-            test_plot['add_comp'] = test_plot.groupby(['corpus', 'sentence', 'mtype', 'group'])['diff'].transform('sum')/2
-            test_plot['max_diff'] = test_plot.groupby(['corpus', 'sentence', 'mtype', 'group'])['diff'].transform('max')
+            test=df.drop_duplicates(subset=['sentence', 'corpus', 'mtype'])
+            test['score_diff']=test.score_diff.astype('float64')
+            test['add_comp'] = test.groupby(['corpus', 'sentence', 'mtype', 'group'])['diff'].transform('sum')/2
+            test['max_diff'] = test.groupby(['corpus', 'sentence', 'mtype', 'group'])['diff'].transform('max')
 
             # MSE of cummulative comp gain
-            test_plot['diff_sq'] = test_plot['diff']*out['diff']
-            test_plot['diff_sq_sum'] = test_plot.groupby(['corpus', 'sentence', 'mtype', 'group'])['diff_sq'].transform('sum')/2
-            test_plot['diff_mse']=test_plot['diff_sq_sum'] / out['n_sub_ens']
+            test['diff_sq'] = test['diff']*test['diff']
+            test['diff_sq_sum'] = test.groupby(['corpus', 'sentence', 'mtype', 'group'])['diff_sq'].transform('sum')/2
+            test['diff_mse']=(test['diff_sq_sum'] / test['n_sub_ens']).pow(1./2)
 
-            test_plot['diff_p_sq'] = test_plot['diff_p']*out['diff_p']
-            test_plot['diff_p_sq_sum'] = test_plot.groupby(['corpus', 'sentence', 'mtype', 'group'])['diff_p_sq'].transform('sum')/2
-            test_plot['diff_p_mse']=test_plot['diff_p_sq_sum'] / out['n_sub_ens']
+            test['diff_p_sq'] = test['diff_p']*test['diff_p']
+            test['diff_p_sq_sum'] = test.groupby(['corpus', 'sentence', 'mtype', 'group'])['diff_p_sq'].transform('sum')/2
+            test['diff_p_mse']=(test['diff_p_sq_sum'] / test['n_sub_ens']).pow(1./2)
+            test['max_diff_p'] = test.groupby(['corpus', 'sentence', 'mtype', 'group'])['diff_p'].transform('max')
 
-            test_plot['diff_r_sq'] = test_plot['diff']*out['diff_r']
-            test_plot['diff_r_sq_sum'] = test_plot.groupby(['corpus', 'sentence', 'mtype', 'group'])['diff_r_sq'].transform('sum')/2
-            test_plot['diff_r_mse']=test_plot['diff_r_sq_sum'] / out['n_sub_ens']
+            test['diff_r_sq'] = test['diff_r']*test['diff_r']
+            test['diff_r_sq_sum'] = test.groupby(['corpus', 'sentence', 'mtype', 'group'])['diff_r_sq'].transform('sum')/2
+            test['diff_r_mse']=(test['diff_r_sq_sum'] / test['n_sub_ens']).pow(1./2)
+            test['max_diff_r'] = test.groupby(['corpus', 'sentence', 'mtype', 'group'])['diff_r'].transform('max')
 
-
+            '''
             cols=['sentence', 'corpus', 'group', 'mtype', 
             'p_comp', 'r_comp', 'f1_comp',
             'moi', 'monotonicity',
             'max_f1_comp', 'min_f1_comp', 
             'max_p_comp','max_f1_comp_', 
             'diff','diff_', 'score_diff']
+            '''
           
-            tt=test_plot[test_plot.monotonicity.isin(['i'])]
-            n_i = len(tt) 
-
             p1 = 'score_diff'
-            p2 = 'diff_'
+            #p2 = 'diff_'
+            
+            tt=test[test.monotonicity.isin(['i'])]
+            n_i = len(tt) 
+            if mt == 'precision':
+                p2 = 'diff_p_sq'
+                p2 = 'max_diff_p'
+                p2 = 'diff_p_mse'
+            elif mt == 'recall':
+                p2 = 'diff_r_sq'
+                p2 = 'max_diff_r'
+                p2 = 'diff_r_mse'
+            else:
+                p2 = 'diff_sq'
+                p2 = 'max_diff'
+                p2 = 'diff_mse'
+
             if n_i > 2: 
                 out['n_i'] = n_i 
                 out['pearsonr_i']=pearsonr(tt[p1], tt[p2])[0]
@@ -87,7 +103,7 @@ for group in semgroups:
             else:
                 out['n_i'] = n_i 
 
-            tt=test_plot[test_plot.monotonicity.isin(['n'])]
+            tt=test[test.monotonicity.isin(['n'])]
             n_n = len(tt) 
             if n_n > 2: 
                 out['n_n'] = n_n 
@@ -97,7 +113,7 @@ for group in semgroups:
             else:
                 out['n_n'] = n_n 
 
-            tt=test_plot[test_plot.monotonicity.isin(['d'])]
+            tt=test[test.monotonicity.isin(['d'])]
             n_d = len(tt) 
             if n_d > 2: 
                 out['n_d'] = n_d 
@@ -110,7 +126,7 @@ for group in semgroups:
             pr = pd.concat([pr, pd.DataFrame(out, index=[0])])
 
 # person's r for diff_ versus moi_score_range_ 
-pear=pd.read_csv('/Users/gms/Desktop/pr_500.csv')
+pear=pd.read_csv('/Users/gms/Desktop/pr_500_sq_diff.csv')
 
 pear['strength_n']=np.where((pear['n_n'] >= 30)& (pear['pearsonr_n'].abs()>=0.50)&(pear['pearsonr_n_p']<0.05), 'mod-strong', None)
 pear['strength_i']=np.where((pear['n_i'] >= 30)& (pear['pearsonr_i'].abs()>=0.50)&(pear['pearsonr_i_p']<0.05), 'mod-strong', None)
@@ -183,8 +199,8 @@ vif = ro.r('car::vif(pmod)')
 cols=['nterms', 'diff_comp', 'diff_comp_sq', 'diff_comp_mse', 'diff_comp_mse_sq', 'moi', 'moi_score_diff']
 
 # Correlations ================> https://stackoverflow.com/questions/25571882/pandas-columns-correlation-with-statistical-significance
-
-
+cols=['moi', 'moi_score_range', 'nterms', 'comp_f1_gain_mse', 'comp_p_gain_mse', 'comp_r_gain_mse']
+u=df.loc[df.group=='Disorders']
 rho = u[cols].corr()
 pval = u[cols].corr(method=lambda x, y: pearsonr(x, y)[1]) - np.eye(*rho.shape)
 p = pval.applymap(lambda x: ''.join(['*' for t in [0.001, 0.01,0.05] if x<=t]))
@@ -229,12 +245,13 @@ def get_lm(mm, corpus, group, measures, measure='F1-score'):
 
 
 ########### PLOTS
-
-# Monotonicity bar plots
+df=pd.read_csv('~/Desktop/top_100.csv')
+# Monotonicity bar plots: get df from monotonicity summary
 semgroups = sorted(list(set(df.group.tolist())))
 rows = [['monotonic p', 'non p', 'monotonic r', 'non r', 'monotonic f1', 'non f1'], 
         ['increase p', 'decrease p', 'increase r', 'decrease r', 'increase f1', 'decrease f1']]  # columns for each row of plots
 
+clrs = ['red', 'red', 'blue', 'blue', 'green', 'green']
 for sg in semgroups:
     
     ix = semgroups.index(sg)
@@ -253,6 +270,7 @@ for sg in semgroups:
     # create a figure with 2 rows of 3 columns: axes is a 2x3 array of <AxesSubplot:>
     fig, axes = plt.subplots(nrows, ncols, sharey=True, figsize=(12, 10))
 
+
     # iterate through each plot row combined with a list from rows
     for axe, row in zip(axes, rows):
         # iterate through each plot column of the current row
@@ -261,7 +279,7 @@ for sg in semgroups:
             # select the data for each plot
             data = t.loc[t.group.eq(sg) & t.corpus.eq(corpus[i]), row]
             # plot the data with seaborn, which is easier to color the bars
-            sns.barplot(data=data, ax=ax)
+            sns.barplot(data=data, ax=ax, palette = clrs)
 
             # label row of subplot accordingly
             if 'monotonic p' in row:
