@@ -63,8 +63,8 @@ from sklearn.metrics import confusion_matrix
 #corpus = 'clinical_trial2'
 #corpus = 'fairview'
 #corpus = 'i2b2'
-corpus = 'fairview'
-#corpus = 'mipacq'
+#corpus = 'fairview'
+corpus = 'mipacq'
 #corpus = 'medmentions'
 
 # TODO: create config.py file
@@ -85,7 +85,7 @@ rtype = 7      # OPTIONS INCLUDE: 2->Ensemble; 3->Tests; 4 -> majority vote; 6 -
 
 # TODO: move to click param
 # STEP-5: CHOOSE WHAT TYPE OF ANALYSIS YOU'D LIKE TO RUN ON THE CORPUS
-analysis_type = 'entity' #options include 'entity', 'cui' OR 'full'
+analysis_type = 'full'#'entity' #options include 'entity', 'cui' OR 'full'
 
 # TODO: create config.py file
 # STEP-(6A): ENTER DETAILS FOR ACCESSING MANUAL ANNOTATION DATA
@@ -110,11 +110,13 @@ def sys_data(corpus, analysis_type):
     if analysis_type == 'entity' and not filter_semtype:
         #return 'disambiguated_analytical_'+corpus+'.csv' # OPTIONS include 'analytical_cui_mipacq_concepts.csv' OR 'analytical_cui_i2b2_concepts.csv' 
         return 'analytical_disambiguated_'+corpus+'_full.csv' # OPTIONS include 'analytical_cui_mipacq_concepts.csv' OR 'analytical_cui_i2b2_concepts.csv' 
+    elif analysis_type == 'full' and corpus == 'mipacq':
+        return 'analytical_disambiguated_mipacq_Disorders,Sign_Symptom_1642639296.046127.csv' # OPTIONS include 'analytical_cui_mipacq_concepts.csv' OR 'analytical_cui_i2b2_concepts.csv' 
     elif analysis_type == 'entity' and filter_semtype:
         return 'analytical_disambiguated_'+corpus+'_st.csv' # OPTIONS include 'analytical_cui_mipacq_concepts.csv' OR 'analytical_cui_i2b2_concepts.csv' 
         #return '/submission/new_ner/analytical_disambiguated_mipacq_Disorders,Sign_Symptom_1633978586.737513.csv'
     elif analysis_type in ('cui', 'full', 'entity'):
-        return 'analytical_'+corpus+'_cui.csv' # OPTIONS include 'analytical_cui_mipacq_concepts.csv' OR 'analytical_cui_i2b2_concepts.csv' 
+        return 'analytical_disambiguated_'+corpus+'_st.csv' # OPTIONS include 'analytical_cui_mipacq_concepts.csv' OR 'analytical_cui_i2b2_concepts.csv' 
 
 system_annotation = sys_data(corpus, analysis_type)
 
@@ -971,7 +973,7 @@ def get_metric_data(analysis_type: str, corpus: str):
 
     sys_ann = sys_ann.rename(columns={"semtype": "semtypes"})
     
-    sql = "SELECT start, end, file, semtype FROM " + ref_table #+ " where semtype in('Anatomy', 'Chemicals_and_drugs')"a
+    sql = "SELECT start, end, file, semtype, value FROM " + ref_table #+ " where semtype in('Anatomy', 'Chemicals_and_drugs')"a
     
     ref_ann = pd.read_sql(sql, con=engine)
     ref_ann = ref_ann.drop_duplicates()
@@ -983,7 +985,7 @@ def get_metric_data(analysis_type: str, corpus: str):
         sys_ann['note_id'] = pd.to_numeric(sys_ann['note_id'])
         sys_ann = sys_ann.loc[sys_ann.note_id.isin(cases)]
 
-    sys_ann = sys_ann[['begin', 'end', 'score', 'note_id', 'semtypes', 'system']]
+    sys_ann = sys_ann[['begin', 'end', 'score', 'note_id', 'semtypes', 'system', 'cui']]
     sys_ann = sys_ann.drop_duplicates()
 
     #ref_ann, _ = reduce_mem_usage(ref_ann)
@@ -1618,6 +1620,7 @@ def set_labels(analysis_type, df):
     if analysis_type == 'entity':   
         df["label"] = 'concept'
     elif analysis_type in ['cui','full']:
+
         df["label"] = df["value"]
     
     return df
@@ -2139,7 +2142,7 @@ def get_ann_vectors(analysis_type, corpus, filter_semtype, semtype):
         ann_dict[system] = flatten_list(sys2)
         ann_dict[system] = [int(i) for i in ann_dict[system]]
 
-    return ann_dict
+    return ann_dict, labels
 
 def get_ensemble_combos_measure_no_st():
     
@@ -2622,87 +2625,5 @@ for measure in measures:
         for sentence in sentences:
             nec.ad_hoc_complementarity_st(sentence, measure, group)
 
-
-# get data for monotinicity
-# https://stackoverflow.com/questions/4983258/python-how-to-check-list-monotonicity
-
-import itertools
-import operator
-import numpy as np 
-import pandas as pd
-
-def monotone_increasing(lst):
-    pairs = zip(lst, lst[1:])
-    return all(itertools.starmap(operator.le, pairs))
-
-def monotone_decreasing(lst):
-    pairs = zip(lst, lst[1:])
-    return all(itertools.starmap(operator.ge, pairs))
-
-def monotone(lst):
-    return monotone_increasing(lst) or monotone_decreasing(lst)
-
-
-
-data=pd.read_csv('/Users/gms/development/nlp/nlpie/data/ensembling-u01/output/complement_mipacq_filter_semtype_False_10-12-2021.csv')
-measures = ['f1', 'precision', 'recall']
-
-for mtype in measures[0:1]: 
-    sentences=set(data.loc[data.mtype==mtype.upper()].sentence.tolist())
-
-    cols_to_keep=['mtype', 'moi', 'merge_right', 'precision_right', 'recall_right', 'f1_right','merge_left', 'precision_left', 'recall_left',
-           'f1_left', 'f1-score', 'precision_or', 'recall_or', 'f1_or', 'precision_and', 'recall_and', 'f1_and', 'sentence', 'order', 'operator', 'merge_left', 'merge_right']
-
-    monotonic = []
-    increase = []
-    decrease = []
-    nonmono = []
-
-    m=0
-    n=0
-
-    for s in list(sentences)[0:1]:
-        test=data.loc[(data.sentence==s)&(data.mtype==mtype.upper())]
-        test[mtype + '-score'] = np.where(test['operator']=='&', test[mtype + '_and'], test[mtype + '_or'])
-        #print(test[cols_to_keep].sort_values(['order','f1-score'], ascending=False))
-        t=test[cols_to_keep].sort_values(['order','f1-score'], ascending=False)
-        o=set(t.order.to_list())
-        scores=[]
-        #if t.moi.values[0] not in scores:
-        #    scores.append(t.moi.values[0])
-        for i in o:
-            #print(t.loc[t.order==i])
-            u=t.loc[t.order==i]
-            #if len(u['merge_left'].values[0][0]) == 1:
-            #    print(s,'left', u['merge_left'].values[0][0])
-            #    scores.append(u[mtype+'_left'].values[0])
-
-            #if len(u['merge_right'].values[0][0]) == 1:
-            #    print('right', u['merge_right'].values[0][0])
-            #    scores.append(u[mtype+'_right'].values[0])
-
-
-            scores.append(u[mtype + '-score'].values[0])
-            print(scores, u[mtype + '-score'].values[0])
-    
-        print('monotonic', monotone(scores[::-1]))
-        print('monotonic increasing', monotone_increasing(scores[::-1]))
-        print('monotonic decreasing', monotone_decreasing(scores[::-1]))
-
-        if monotone(scores[::-1]):
-            m+=1
-        else:
-            n+=1
-
-        if monotone_increasing(scores[::-1]):
-            increase.append(1)
-        if monotone_decreasing(scores[::-1]):
-            decrease.append(1)
-    
-    monotonic.append(m)
-    nonmono.append(n)
-    index = ['snail', 'pig'] 
-    df = pd.DataFrame({'mono': monotone, 'nonmono': nonmono}, index=index)
-            
 
 '''

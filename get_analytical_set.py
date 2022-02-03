@@ -27,12 +27,14 @@ def get_sem_types(engine):
 def get_data_file(file_name, st=None):
 
     if len(st) > 0: 
-        df = pd.read_csv(data_folder / file_name, dtype={'note_id': str})
+        df = pd.read_csv(data_folder / file_name, dtype={'file': str})
 
         if corpus != 'medmentions':
-            df = df[['begin', 'end', 'note_id', 'score', 'semtypes', 'system', 'corpus']]
+            df = df[['begin', 'end', 'note_id', 'score', 'semtypes', 'system', 'corpus', 'cui']]
         else:
             df = df[['begin', 'end', 'note_id', 'score', 'semtype', 'polarity', 'system', 'cui']]
+
+        print(df.columns)
 
         mask = [st for st in list(set(st.tui.tolist()))]
         qumls = df.loc[df.system=='quick_umls']
@@ -55,6 +57,7 @@ def get_data_file(file_name, st=None):
         mask = [st for st in list(set(st.abbreviation.tolist()))]
         mm =  df.loc[df.system=='metamap']
         mm = mm[mm.semtypes.isin(mask)]
+
     else:
         df = pd.read_csv(data_folder / file_name, dtype={'note_id': str})
 
@@ -63,7 +66,7 @@ def get_data_file(file_name, st=None):
         elif corpus in ['mipacq']:
             df = df[['begin', 'end', 'note_id', 'score', 'semtypes', 'system', 'cui']]
         else:
-            df = df[['begin', 'end', 'note_id', 'score', 'semtypes', 'system']]
+            df = df[['begin', 'end', 'note_id', 'score', 'semtypes', 'system', 'cui']]
 
         qumls = df.loc[df.system=='quick_umls']
 
@@ -99,7 +102,7 @@ def get_data(engine):
         on u.begin = n.begin and u.end = n.end and u.note_id = n.note_id 
         where n.begin is not null and n.end is not null and n.note_id is not null
 
-    union distinct
+    union 
 
     select u.begin, u.end, null as concept, u.cui, u.confidence as score, u.tui as semtype, u.note_id, u.type, u.system, 1 as polarity 
     from bio_biomedicus_UmlsConcept u left join bio_biomedicus_Negated n
@@ -199,7 +202,7 @@ def disambiguate(arg):
     #elif corpus in ['mipacq']:
     #    df = arg[['begin', 'end', 'note_id', 'cui', 'semtypes', 'score', 'length', 'system']].copy()
     else:
-        df = arg[['begin', 'end', 'note_id', 'score', 'length', 'system', 'semtypes']].copy()
+        df = arg[['begin', 'end', 'note_id', 'score', 'length', 'system', 'semtypes', 'cui']].copy()
     
     df.sort_values(by=['note_id','begin'],inplace=True)
     
@@ -289,7 +292,7 @@ def assemble_data(cases, qumls, b9, clamp, ctakes, mm, group=None):
     if corpus not in ['medmentions']:
         cols_to_keep=['begin', 'end', 'semtypes']
     else:
-        cols_to_keep=['begin', 'end', 'semtype']
+        cols_to_keep=['begin', 'end', 'semtype', 'cui']
 
     i = 0
     for case in cases:
@@ -358,15 +361,15 @@ def main(corpus, semtypes=None):
     #GENERATE analytical table
 
     # TODO get cases method
-    sql = """SELECT  distinct file as note_id 
-             FROM fairview_all
+    sql = """SELECT  distinct file as file 
+             FROM mipacq_all
           """
     
     file ='analytical_' + corpus + '.csv'
     #file = 'analytical_disambiguated_fairview_1633366674.934254.csv'
     notes = pd.read_sql(sql, engine)
     
-    cases = set(notes['note_id'].tolist())
+    cases = set(notes['file'].tolist())
 
     #qumls, b9, clamp, ctakes, mm = get_data(engine)
    
@@ -400,8 +403,8 @@ def main(corpus, semtypes=None):
     
 if __name__ == '__main__':
     #%prun main()
-    corpus = 'fairview'
-    semtype = 'Finding'
+    corpus = 'mipacq'
+    semtype = 'Disorders,Sign_Symptom'
     analytical_cui = main(corpus, semtype)
     elapsed = (time.time() - start)
     print('fini!', 'time:', elapsed)

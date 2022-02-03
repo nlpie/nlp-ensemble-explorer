@@ -196,10 +196,11 @@ vif = ro.r('car::vif(pmod)')
 
 # ---------> corr
 
-cols=['nterms', 'diff_comp', 'diff_comp_sq', 'diff_comp_mse', 'diff_comp_mse_sq', 'moi', 'moi_score_diff']
+cols=[ 'moi', 'moi_score_diff','nterms', 'diff_comp', 'diff_comp_sq', 'diff_comp_mse', 'diff_comp_mse_sq','comp_diff_p_r_mean_mse','count_p_n_mean_mse']
 
 # Correlations ================> https://stackoverflow.com/questions/25571882/pandas-columns-correlation-with-statistical-significance
-cols=['moi', 'moi_score_range', 'nterms', 'comp_f1_gain_mse', 'comp_p_gain_mse', 'comp_r_gain_mse']
+cols=['moi', 'moi_score_range', 'nterms',  'comp_p_gain_mse', 'comp_r_gain_mse', 'comp_f1_gain_mse',
+        'comp_diff_p_r_mean_mse','count_p_n_mean_mse']
 u=df.loc[df.group=='Disorders']
 rho = u[cols].corr()
 pval = u[cols].corr(method=lambda x, y: pearsonr(x, y)[1]) - np.eye(*rho.shape)
